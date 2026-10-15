@@ -4,10 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-openGym is a self-hosted gym & body-weight tracker PWA. Two containers (`api` + `web`) plus a
-`./data` folder the user owns — no third-party account, no telemetry. Passkey (WebAuthn) login,
-installable as a home-screen app, optional Capacitor shells for standalone Android/iOS builds.
+**The Hype** (forked from openGym) is a self-hosted gym and body-weight tracker with an integrated
+AI "Hype Man / Hype Woman" motivational coach. It keeps the core openGym guarantees: two containers
+(`api` + `web`) plus a `./data` folder the user owns — no third-party account, no telemetry, passkey
+(WebAuthn) login, installable as a home-screen PWA, with optional Capacitor shells for Android/iOS.
 License: AGPL-3.0-or-later.
+
+### The Hype Vision
+- **Hype Man / Hype Woman Persona**: Supportive, high-energy, validating coach that celebrates PRs,
+  keeps rest periods focused, analyzes volume progress, and encourages consistency without fluff.
+- **Privacy First**: All workout metrics, logs, and coach interactions remain strictly in user-controlled storage.
 
 ## Project layout
 
@@ -140,3 +146,18 @@ output), `api`, `web` (multi-stage build of `frontend/` served by nginx, which a
 - Don't commit `media/` or `data/` (gitignored).
 - Training-logic changes (progression, 1RM, session read-back) need a unit test in `src/lib`
   beside the code, not just manual clicking-through.
+
+## Agent Skills & Resources
+
+The repository carries domain-specific skills in `.agents/skills/` derived from the Claude Code agents ecosystem:
+- `react-state-management` — Zustand store patterns, immutability, synchronization with `lib/api.js`.
+- `nodejs-backend-patterns` — Plain Node.js HTTP server routing, streams, and async patterns.
+- `llm-application-dev-ai-assistant` & `prompt-engineering-patterns` — AI Hype Coach persona, structured prompts, and cadence.
+- `unit-testing-test-generate` — Vitest unit tests for training logic.
+- `mobile-developer` — Capacitor shell considerations and native storage persistence.
+- `full-stack-orchestration-full-stack-feature` — End-to-end feature implementation workflows.
+
+Custom slash commands for Claude Code are configured in `.claude/commands/`:
+- `/test` — Runs frontend, api, and vitest suites.
+- `/hype-coach` — Guidelines and workflow for modifying or testing the Hype Coach.
+

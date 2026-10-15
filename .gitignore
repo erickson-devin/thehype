@@ -15,8 +15,9 @@ node_modules/
 *.log
 .DS_Store
 node_modules
-.claude/
-.agents/
+# Agent configs tracked; ignore local transient state
+.claude/*.local.json
+.claude/history.json
 .superpowers/
 
 # Nix build result symlinks
