@@ -13,7 +13,7 @@ import { supersetMeta, setSupersetMeta } from '../lib/superset-meta.js'
 import { fmtRest } from '../lib/duration.js'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
-import { Button, Row, SelectRow, Switch } from '../components/ui.jsx'
+import { Button, Row, SelectRow, Switch, Stepper } from '../components/ui.jsx'
 import SwipeRow from '../components/SwipeRow.jsx'
 import { workoutControls } from '../lib/workout-controls.js'
 import { copyRoutine, deleteRoutine, replaceSlotExercise } from '../lib/routines.js'
@@ -22,6 +22,7 @@ import { markEntryUndone } from '../lib/sync-merge.js'
 import { MOBILE, printHtml } from '../lib/mobile.js'
 import { speedUnitOf } from '../lib/speed.js'
 import { POLICIES_FOR, POLICY_NAME, POLICY_DESC } from '../lib/progression.js'
+import { intervalSettings, WORK_SEC_RANGE, REST_SEC_RANGE } from '../lib/interval-plan.js'
 import BodyMap from '../components/BodyMap.jsx'
 import { loadOfRoutine, rankOf, MUSCLE_NAME } from '../lib/muscles.js'
 
@@ -489,7 +490,28 @@ export default function RoutineEdit() {
           else delete routine.excludeFromProgression
         })} />
       </Row>
+      {/* Follow-along mode: the workout runs itself as a timed player (views/IntervalPlayer.jsx).
+          Stored on the routine as `auto`, written only when on, like the deload flag above. */}
+      <Row icon="timer" title={t('Automated workout')}
+        subtitle={t('Counts down each set and rest for you, with spoken cues, and logs sets as it goes.')}>
+        <Switch checked={r.auto === true} onChange={v => update(s => {
+          const routine = s.routines.find(x => x.id === id)
+          if (v) routine.auto = true
+          else { delete routine.auto; delete routine.autoWorkSec; delete routine.autoRestSec }
+        })} />
+      </Row>
     </div>
+    {r.auto === true && (() => {
+      const iv = intervalSettings(r)
+      return <div style={{ margin: '-4px 0 16px' }}>
+        <Stepper label={t('Work interval')} unit={t('sec')} value={iv.workSec} step={5} min={WORK_SEC_RANGE[0]} max={WORK_SEC_RANGE[1]} decimal={false}
+          onChange={v => update(s => { s.routines.find(x => x.id === id).autoWorkSec = Math.round(v) })} />
+        <div style={{ height: 8 }} />
+        <Stepper label={t('Rest interval')} unit={t('sec')} value={iv.restSec} step={5} min={REST_SEC_RANGE[0]} max={REST_SEC_RANGE[1]} decimal={false}
+          onChange={v => update(s => { s.routines.find(x => x.id === id).autoRestSec = Math.round(v) })} />
+        <div className="small dim" style={{ margin: '6px 2px 0' }}>{t('Work applies to rep sets. Timed holds and cardio use their own length, and an exercise’s own rest wins over this one.')}</div>
+      </div>
+    })()}
     <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
       {r.excludeFromProgression
         ? t('A deload routine opens at the numbers set here, so the progression above does not apply to it.') + ' ' + t('The next regular target continues from the last included workout.')

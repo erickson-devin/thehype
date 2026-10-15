@@ -11,6 +11,8 @@ import { toScale, rirOf, EFFORT_PRESETS, effortColor } from './lib/effort.js'
 import { beep, vibrate } from './lib/sound.js'
 import { t, tn, dateLocale, instrFor, instrTranslated, descFor, exerciseNameFor, exerciseNameClass, getLang, useLang } from './lib/i18n.js'
 import { nav, closeThenNav, navToWorkout } from './lib/nav.js'
+import { startWorkoutMusic } from './lib/auto-music.js'
+import { isAutoRoutine } from './lib/interval-plan.js'
 import { buildStarterPlan, starterPlanDays, starterPlanOptions } from './lib/starter.js'
 import Media, { Thumb } from './components/Media.jsx'
 import CustomMediaField from './components/CustomMediaField.jsx'
@@ -2776,9 +2778,13 @@ export function startFlow(routineIds) {
 export function beginWorkout(routineIds, bw) {
   const st = S()
   const { entries, routineIds: rids, routines } = buildCombinedEntries(st, routineIds)
+  // Follow-along mode: a session of exactly one routine that has it switched on. A combined
+  // session stays manual — there is no single set of intervals to run it by.
+  const auto = routines.length === 1 && isAutoRoutine(routines[0]) && entries.length > 0
   update(s => {
     s.active = {
       id: uid(), d: todayISO(), start: Date.now(),
+      ...(auto ? { auto: true } : {}),
       // A session tracks its routines as a list; per-entry `rid` carries which one each
       // exercise came from. No top-level `excludeFromProgression` — per-entry `noProg` does it.
       routineIds: rids,
@@ -2790,6 +2796,7 @@ export function beginWorkout(routineIds, bw) {
     }
   })
   useUI.getState().stopRest()
+  if (auto) startWorkoutMusic() // still inside the tap that started the workout
   navToWorkout()
 }
 
