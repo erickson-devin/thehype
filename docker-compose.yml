@@ -2,9 +2,11 @@ name: opengym
 
 services:
   # Passkey auth + per-user data (Node, no framework).
-  # image: prebuilt (docker compose pull). build: from source (docker compose up --build).
+  # Fork: images come from this repo's GHCR packages (.github/workflows/docker-publish.yml).
+  # A push to main publishes :edge; :latest only appears once a release is published.
+  # Pull the newest with `docker compose pull`, or build from source with `up --build`.
   api:
-    image: ghcr.io/duartesantos8/opengym-api:latest
+    image: ghcr.io/erickson-devin/opengym-api:edge
     # Default target: no AI runtime, no AI dependency — the image every instance has always had.
     # To opt into the AI Coach, build the other target instead:
     #     API_TARGET=coach docker compose up --build api
@@ -35,7 +37,7 @@ services:
   # Builds the React frontend (multi-stage) and serves it, proxying /api → api
   # and the exercise animations, which are part of the image. Single origin for passkeys.
   web:
-    image: ghcr.io/duartesantos8/opengym-web:latest
+    image: ghcr.io/erickson-devin/opengym-web:edge
     build:
       context: .
       dockerfile: web/Dockerfile
