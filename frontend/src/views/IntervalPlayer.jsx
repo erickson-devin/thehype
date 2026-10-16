@@ -124,13 +124,14 @@ export default function IntervalPlayer() {
   }
 
   const resting = block?.kind === 'rest'
-  const accent = resting ? 'var(--blue, #0a84ff)' : 'var(--green, #30d158)'
+  const accent = resting ? 'var(--hype-2)' : 'var(--acc)'
   const workBlocks = blocks.filter(b => b.kind === 'work')
   const setNo = blocks.slice(0, idx + 1).filter(b => b.kind === 'work').length
   const label = resting ? t('Rest') : t('Work')
 
   return <div role="main" aria-label={t('Follow-along workout')} style={{
-    position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', color: 'var(--label)',
+    position: 'fixed', inset: 0, zIndex: 50, color: 'var(--label)',
+    background: `radial-gradient(120% 60% at 50% 38%, color-mix(in srgb, ${accent} 16%, var(--bg)), var(--bg) 72%)`,
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
     padding: 'max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom))', textAlign: 'center',
   }}>
@@ -143,7 +144,7 @@ export default function IntervalPlayer() {
     <div>
       <div style={{ fontSize: 18, letterSpacing: '.12em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, margin: '6px 0 0' }}>{resting ? t('Get ready') : nameOf(block.id)}</div>
-      <div aria-live="off" style={{ fontSize: 'min(40vw, 220px)', lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: accent, margin: '12px 0' }}>{left}</div>
+      <div aria-live="off" style={{ fontSize: 'min(40vw, 220px)', lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: accent, margin: '12px 0', textShadow: `0 0 48px color-mix(in srgb, ${accent} 55%, transparent)` }}>{left}</div>
       <div className="dim" style={{ fontSize: 18 }}>
         {coming ? t('Up next: {0}', nameOf(coming.id)) : t('Last one!')}
       </div>

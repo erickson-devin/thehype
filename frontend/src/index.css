@@ -1,5 +1,5 @@
 /* ============================================================================
-   openGym — design system
+   The Hype — design system
    ----------------------------------------------------------------------------
    Rebuilt around four rules, each aimed at a specific "generated" tell in the
    previous sheet:
@@ -20,10 +20,10 @@
 :root {
   /* surfaces — dark is the default */
   --bg:        #000000;
-  --bg-el:     #0e0e10;   /* elevated backdrop (sheets, bars) */
-  --surface:   #1c1c1e;   /* card / grouped-list fill */
-  --surface-2: #2c2c2e;   /* pressed + nested fill */
-  --surface-3: #3a3a3c;   /* controls (segmented track, switch off) */
+  --bg-el:     #0d0b12;   /* elevated backdrop (sheets, bars) */
+  --surface:   #17141f;   /* card / grouped-list fill: charcoal with a hint of violet */
+  --surface-2: #241f30;   /* pressed + nested fill */
+  --surface-3: #342d44;   /* controls (segmented track, switch off) */
 
   /* text */
   --label:     #ffffff;
@@ -42,9 +42,10 @@
   --purple:#bf5af2; --mint:#63e6e2; --brown:#ac8e68; --grey:#8e8e93;
 
   /* accent (per-account, synced) */
-  --acc:  var(--green);
-  --acc-2:#248a3d;
+  --acc:  #39ff14;        /* The Hype: neon green; the preset rules below keep it per theme */
+  --acc-2:#2bcf0f;
   --on-acc:#000000;
+  --hype-2:#b24bff;       /* electric purple: the second voice (rest intervals, highlights) */
   --acc-soft: color-mix(in srgb, var(--acc) 16%, transparent);
   --acc-line: color-mix(in srgb, var(--acc) 38%, transparent);
 
@@ -89,6 +90,7 @@
   --purple:#af52de; --mint:#00c7be; --brown:#a2845e; --grey:#8e8e93;
   --acc-2:#248a3d;
   --on-acc:#ffffff;
+  --hype-2:#9b30e8;
 }
 
 /* accents — Apple's system colours, so a recolour never looks off-system */
@@ -100,6 +102,13 @@
 :root[data-accent="red"]   { --acc:var(--red);    --acc-2:#d70015; --on-acc:#fff }
 :root[data-accent="teal"]  { --acc:var(--teal);   --acc-2:#0071a4; --on-acc:#000 }
 :root[data-accent="gold"]  { --acc:var(--yellow); --acc-2:#b25000; --on-acc:#000; --knob-ring:rgba(0,0,0,.28) }
+/* The Hype: three of the presets go electric in the dark theme. The light theme keeps the
+   system shades above, where neon on white would not be readable. lib/format.js ACCENTS holds
+   the same three values for the swatches. */
+:root:not([data-theme="light"])[data-accent="lime"]  { --acc:#39ff14; --acc-2:#2bcf0f; --on-acc:#000 }
+:root:not([data-theme="light"])[data-accent="violet"]{ --acc:#b24bff; --acc-2:#8f2fe0; --on-acc:#fff }
+:root:not([data-theme="light"])[data-accent="orange"]{ --acc:#ff7a1a; --acc-2:#d95f00; --on-acc:#000 }
+
 /* Label colour on a filled accent button is picked per accent by measured contrast,
    not by taste. Button text is 17px/600, so the AA bar is 3:1 (large text). White on
    the light-theme green is 2.22:1 and on teal 2.57:1 — both fail, and green is the
