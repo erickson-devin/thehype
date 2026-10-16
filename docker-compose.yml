@@ -2,19 +2,20 @@ name: opengym
 
 services:
   # Passkey auth + per-user data (Node, no framework).
-  # Fork: images come from this repo's GHCR packages (.github/workflows/docker-publish.yml).
-  # A push to main publishes :edge; :latest only appears once a release is published.
-  # Pull the newest with `docker compose pull`, or build from source with `up --build`.
+  # Fork: deployed strictly from this repo's prebuilt GHCR packages
+  # (.github/workflows/docker-publish.yml). A push to main publishes :edge; :latest only
+  # appears once a release is published. The `build:` blocks are commented out on purpose;
+  # uncomment them (and run `up --build`) to build from source instead.
   api:
     image: ghcr.io/erickson-devin/opengym-api:edge
+    pull_policy: always   # :edge moves with every push to main, so re-check the registry on `up`
     # Default target: no AI runtime, no AI dependency — the image every instance has always had.
-    # To opt into the AI Coach, build the other target instead:
-    #     API_TARGET=coach docker compose up --build api
-    # `--build` matters: with an `image:` also set, compose would otherwise pull the prebuilt
-    # default rather than build the coach one.
-    build:
-      context: ./api
-      target: ${API_TARGET:-default}
+    # The registry image is that default one. To opt into the AI Coach, build the other target
+    # from source instead (uncomment `build:`, then `API_TARGET=coach docker compose up --build api`;
+    # `--build` matters: with an `image:` also set, compose would otherwise pull the prebuilt one).
+    # build:
+    #   context: ./api
+    #   target: ${API_TARGET:-default}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -38,9 +39,10 @@ services:
   # and the exercise animations, which are part of the image. Single origin for passkeys.
   web:
     image: ghcr.io/erickson-devin/opengym-web:edge
-    build:
-      context: .
-      dockerfile: web/Dockerfile
+    pull_policy: always
+    # build:
+    #   context: .
+    #   dockerfile: web/Dockerfile
     restart: unless-stopped
     depends_on:
       api:
