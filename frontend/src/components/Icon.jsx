@@ -159,6 +159,7 @@ const P = {
   // warm-up (flame is the streak only)
   sunrise: <path d="M3.6 17.4h16.8M7.6 17.4a4.4 4.4 0 0 1 8.8 0M12 6.4v2.4M5.4 10.2 7 11.8M18.6 10.2 17 11.8M8.4 20.4h7.2" />,
   plusCircle: <><circle cx="12" cy="12" r="8.2" /><path d="M12 8.2v7.6M8.2 12h7.6" /></>,
+  headphones: <><path d="M4 15v-3a8 8 0 0 1 16 0v3" /><rect x="3" y="14" width="4.4" height="7" rx="1.7" /><rect x="16.6" y="14" width="4.4" height="7" rx="1.7" /></>,
   // a timed set's clock (timer stays the rest timer)
   stopwatch: <><circle cx="12" cy="13.4" r="7.2" /><path d="M12 9.6v3.8M9.6 3.4h4.8M18 7.2l1.4-1.4" /></>,
   // exercise settings: two sliders

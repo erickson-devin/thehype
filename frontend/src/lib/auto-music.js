@@ -1,24 +1,65 @@
-// Follow-along mode starts the music with the workout. Two ways to do it; to switch, uncomment
-// ONE of the two methods inside startWorkoutMusic and leave the other commented. Called once from
-// beginWorkout (sheets.jsx), inside the tap that started the workout, which is what lets a
-// browser open another app.
+// Follow-along mode starts the music with the workout, set up per profile (Settings → Workout →
+// Music Integration), so each user on an instance brings their own player. Two optional values
+// live on the profile like any other setting, so they sync with it and sit in that user's own
+// state file on the server:
+//   musicWebhookUrl  an address The Hype calls when the workout starts (Spotify Connect on a
+//                    speaker through a script on the home network, Home Assistant, …)
+//   musicDeepLink    a link that opens the music app on this device (spotify:playlist:<id>)
 //
-// Fill these in:
-const SPOTIFY_PLAYLIST_ID = 'YOUR_PLAYLIST_ID'                  // Method A
-const MUSIC_WEBHOOK_URL = 'http://192.168.1.X:5000/start-music' // Method B (your Unraid Flask endpoint)
+// What happens on Start (startWorkoutMusic, called from sheets.jsx beginWorkout):
+//   a webhook is set        → one silent no-cors request to it; the deep link is left alone
+//   no webhook, a deep link → the page navigates to it, which opens the app
+//   neither                 → nothing; the timer carries on
+export const MUSIC_FIELD_MAX = 500
 
-export function startWorkoutMusic() {
-  // ---- Method A: deep link, opens the Spotify app on the phone ------------------------------
-  // Leaves the browser for Spotify, so the PWA is backgrounded until you switch back.
-  // window.location.href = 'spotify:playlist:' + SPOTIFY_PLAYLIST_ID
+// A link that runs code in this page, or reads a file, is not a way to open a music app. A profile
+// can arrive from an import or another device, so the stored value is checked again before use.
+const NEVER = /^(javascript|data|vbscript|file|blob|about):/i
 
-  // ---- Method B: local webhook, Spotify Connect on your network speakers --------------------
-  // Fire and forget. `no-cors` means the response is opaque and a CORS failure is not an error.
-  // Note: an https page (the PWA behind your reverse proxy) calling this plain-http LAN URL is
-  // blocked as mixed content by most browsers; serve the endpoint over https, or use the
-  // Capacitor app, to make it work.
-  // fetch(MUSIC_WEBHOOK_URL, { method: 'GET', mode: 'no-cors' }).catch(() => {})
+/** The webhook address as saved: an http(s) URL, trimmed. '' when empty or not one. */
+export function cleanWebhookUrl(v) {
+  const s = String(v ?? '').trim()
+  if (!s || s.length > MUSIC_FIELD_MAX) return ''
+  let u
+  try { u = new URL(s) } catch { return '' }
+  return u.protocol === 'http:' || u.protocol === 'https:' ? s : ''
 }
 
-// Referenced so the unused-constant noise stays out of a build while both methods are commented.
-export const MUSIC_CONFIG = { SPOTIFY_PLAYLIST_ID, MUSIC_WEBHOOK_URL }
+/** The deep link as saved: "scheme:rest" with no spaces or control characters, trimmed. '' when not one. */
+export function cleanDeepLink(v) {
+  const s = String(v ?? '').trim()
+  if (!s || s.length > MUSIC_FIELD_MAX) return ''
+  if (/[\s\u0000-\u001f\u007f]/.test(s)) return ''
+  if (!/^[a-z][a-z0-9+.-]*:\S/i.test(s) || NEVER.test(s)) return ''
+  return s
+}
+
+/** What Start should do for this profile: { kind: 'webhook' | 'link', url } or null. */
+export function musicPlan(S) {
+  const hook = cleanWebhookUrl(S?.musicWebhookUrl)
+  if (hook) return { kind: 'webhook', url: hook }
+  const link = cleanDeepLink(S?.musicDeepLink)
+  return link ? { kind: 'link', url: link } : null
+}
+
+/**
+ * Starts the music for the profile `S` (the store's state). `fetchFn` and `open` are injectable for
+ * tests. Never throws and never waits: the workout starts whatever the music does. Returns what it
+ * did ('webhook', 'link') or null.
+ */
+export function startWorkoutMusic(S, { fetchFn = globalThis.fetch, open = url => { window.location.href = url } } = {}) {
+  const plan = musicPlan(S)
+  if (!plan) return null
+  try {
+    if (plan.kind === 'webhook') {
+      // no-cors: the answer is opaque and a missing CORS header is not a failure. Note that a page
+      // served over https cannot call a plain http:// address (mixed content); the request is
+      // simply blocked, which the catch below treats like any other miss.
+      const p = fetchFn(plan.url, { method: 'GET', mode: 'no-cors' })
+      if (p && typeof p.catch === 'function') p.catch(() => {})
+    } else {
+      open(plan.url)
+    }
+  } catch { /* the music is a nicety, never a reason the workout does not start */ }
+  return plan.kind
+}

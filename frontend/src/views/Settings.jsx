@@ -34,6 +34,7 @@ import { CUSTOM, accentKey, adjustedIn, applyAccent, cleanHex, inkOn, isGrey } f
 import { checkForUpdate, downloadAndInstall, fetchChecksum, RELEASES_PAGE } from '../lib/update.js'
 import { forgetCoach } from '../lib/coach-api.js'
 import { REST_MAX, REST_PAUSE_MIN, REST_PAUSE_MAX, fmtRest, fmtDuration } from '../lib/duration.js'
+import { cleanWebhookUrl, cleanDeepLink, MUSIC_FIELD_MAX } from '../lib/auto-music.js'
 import { starterPlanSheet, confirmSheet, importFromApp, importFromHevy, equipmentProfileSheet, plateInventorySheet, dumbbellInventorySheet, menuSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { durationSheet } from '../components/DurationWheel.jsx'
@@ -508,6 +509,23 @@ export default function Settings({ page = null, find = null, via = null }) {
             value={S.gifSize === 'mini' || S.gifSize === 'off' ? S.gifSize : 'full'}
             onChange={v => update(s => { s.gifSize = v })} />
         </Row>
+      </Section>
+      {/* Music for automated workouts (lib/auto-music.js): saved on this profile, so each person on an
+          instance brings their own player. Room Speakers (the webhook) win when both are filled in. */}
+      <Section title={t('Music Integration')} footer={<>
+        {t('Starts your music automatically when an interval workout begins.')}
+        <br />• {t('Room Speakers: Great for home gyms where music plays over smart speakers while voice cues stay on your phone.')}
+        <br />• {t('Phone / Headphone Audio: Best for earbuds or workouts on the go.')}
+        <br />{t('If both are configured, Room Speakers take priority. Leave both empty for silence.')}
+      </>}>
+        <MusicField icon="speaker" iconTint="var(--pink)" title={t('Room Speakers (Advanced)')}
+          subtitle={t('Plays music across your home/gym network speakers via your server endpoint.')}
+          field="musicWebhookUrl" clean={cleanWebhookUrl} placeholder="https://music.yourdomain.com/start-music"
+          invalid={t('Enter a full web address starting with http:// or https://')} />
+        <MusicField icon="headphones" iconTint="var(--green)" title={t('Phone / Headphone Audio')}
+          subtitle={t('Opens your music app (Spotify, Apple Music) directly on this device.')}
+          field="musicDeepLink" clean={cleanDeepLink} placeholder="spotify:playlist:..."
+          invalid={t('Enter a link like spotify:playlist:ID')} />
       </Section>
       <Section>
         <Row icon="wrench" iconTint="var(--grey)" title={t('Fine-tuning')} subtitle={t('Buttons, timed sets')} accessory="chevron" onClick={() => open('advanced')} />
@@ -1344,6 +1362,39 @@ async function clearMediaAfterReset(signedIn) {
    waiting to go up; a tap sends what is waiting now, offers again what the server refused, and
    lets a device that showed a file as missing ask for it again. On a device without a server that
    stores media, it says they are kept here only. */
+/* One of the two Music Integration inputs. Typing is local; the value is checked and saved when the
+   field loses focus or Enter is pressed, so a half-typed address is never synced or used. An empty
+   field clears the setting. An unusable value is left unsaved and the field says why. */
+function MusicField({ icon, iconTint, title, subtitle, field, clean, placeholder, invalid }) {
+  const update = useStore(s => s.update)
+  const saved = useStore(s => s.S[field]) || ''
+  const [text, setText] = useState(saved)
+  const [bad, setBad] = useState(false)
+  // Follows the profile when it changes underneath (a sync from another device) while not being edited.
+  const editing = useRef(false)
+  useEffect(() => { if (!editing.current) { setText(saved); setBad(false) } }, [saved])
+  const commit = () => {
+    editing.current = false
+    const raw = text.trim()
+    const value = clean(raw)
+    if (raw && !value) { setBad(true); return }
+    setBad(false)
+    setText(value)
+    if (value !== saved) update(s => { s[field] = value })
+  }
+  return <>
+    <Row icon={icon} iconTint={iconTint} title={title} subtitle={subtitle} />
+    <div style={{ padding: '0 16px 12px' }}>
+      <TextField value={text} placeholder={placeholder} maxLength={MUSIC_FIELD_MAX} inputMode="url"
+        autoCapitalize="none" autoCorrect="off" spellCheck={false} aria-label={title} aria-invalid={bad || undefined}
+        onFocus={() => { editing.current = true }}
+        onChange={e => { setText(e.target.value); if (bad) setBad(false) }}
+        onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+      {bad && <div className="small" role="alert" style={{ color: 'var(--red)', marginTop: 6 }}>{invalid}</div>}
+    </div>
+  </>
+}
+
 function MediaRow() {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)

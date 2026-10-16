@@ -2802,7 +2802,9 @@ export function beginWorkout(routineIds, bw) {
     }
   })
   useUI.getState().stopRest()
-  if (auto) startWorkoutMusic() // still inside the tap that started the workout
+  // The profile's own music setup, still inside the tap that started the workout (a browser only
+  // lets a tap open another app). Webhook first, else the deep link, else nothing.
+  if (auto) startWorkoutMusic(st)
   navToWorkout()
 }
 

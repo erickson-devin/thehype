@@ -90,11 +90,17 @@ export default function IntervalPlayer() {
     return () => clearInterval(id)
   }, [idx, paused, finished, block, advance, sound])
 
+  // The audio context started inside the tap that opened the player, before the first cue needs it.
+  useEffect(() => { unlock(sound); return stopSpeaking }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // What is said when a block begins. Once per block: pausing and resuming do not repeat it.
+  // A Work block opens with a high beep and a spoken "Go!", the cue to move, so nobody has to
+  // look at the screen to know the rest is over; the first one also names the exercise.
   useEffect(() => {
     if (!block || finished || mutedRef.current) return
-    if (block.kind === 'rest') speak(t('Rest for {0} seconds. Next up: {1}', block.sec, nameOf(coming?.id)))
-    else if (idx === 0) speak(t('First up: {0}', nameOf(block.id)))
+    if (block.kind === 'rest') { speak(t('Rest for {0} seconds. Next up: {1}', block.sec, nameOf(coming?.id))); return }
+    countdownBeep(0, !!sound)
+    speak(idx === 0 ? t('First up: {0}. Go!', nameOf(block.id)) : t('Go!'))
   }, [idx]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Out of blocks: say so, then hand over to the ordinary finish (it asks about anything unchecked).
@@ -104,7 +110,6 @@ export default function IntervalPlayer() {
     finishWorkout()
   }, [finished])
 
-  useEffect(() => { unlock(sound); return stopSpeaking }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A session that was already fully ticked (resumed at the end) has nothing to play.
   if (!A) return null

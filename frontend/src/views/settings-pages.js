@@ -59,6 +59,8 @@ export const SEARCH = [
   { page: 'workout', title: 'Collapse completed exercises', icon: 'minimize', tint: 'var(--teal)', kw: 'collapse fold minimize hide done finished completed exercises list compact remaining left to do' },
   { page: 'workout', title: 'Weigh in before workouts', icon: 'scale', tint: 'var(--green)', kw: 'body weight weigh scale start' },
   { page: 'workout', title: 'Keep screen awake', icon: 'phoneScreen', tint: 'var(--yellow)', kw: 'wake lock screen sleep display on', when: c => c.wakeOK || !c.mobile },
+  { page: 'workout', title: 'Room Speakers (Advanced)', icon: 'speaker', tint: 'var(--pink)', kw: 'music spotify playlist webhook url smart speakers network home gym server endpoint sonos automated interval workout start play' },
+  { page: 'workout', title: 'Phone / Headphone Audio', icon: 'headphones', tint: 'var(--green)', kw: 'music spotify apple music deep link app playlist earbuds earphones phone automated interval workout start play' },
   { page: 'workout', title: 'Exercise animations', icon: 'image', tint: 'var(--teal)', kw: 'gif animation video media pictures images', opts: ['Full', 'Small', 'Hidden'] },
   { page: 'workout', title: 'Fine-tuning', icon: 'wrench', tint: 'var(--grey)', kw: 'advanced more options' },
   // Fine-tuning

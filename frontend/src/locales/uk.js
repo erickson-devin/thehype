@@ -2239,4 +2239,7 @@ export default {
   'Your sports watch, calling you back.': 'Ваш спортивний годинник кличе вас назад.',
   'Coach wants you back on the bar.': 'Тренер чекає вас назад біля штанги.',
   'Gentle, for headphones or a quiet room.': 'Тихий, для навушників або спокійної кімнати.',
+  'Music Integration': 'Інтеграція музики',
+  'Room Speakers (Advanced)': 'Колонки в кімнаті (розширено)',
+  'Phone / Headphone Audio': 'Звук на телефоні / в навушниках',
 }

@@ -68,3 +68,37 @@ export const nextWork = (blocks, i) => blocks.slice(i + 1).find(b => b.kind === 
 /** Seconds of the whole plan from block `i` on, for a "time left" line. */
 export const remainingSec = (blocks, i, left) =>
   Math.max(0, left) + blocks.slice(i + 1).reduce((n, b) => n + b.sec, 0)
+
+// A routine's rep and set counts are the plan's, and a progression rule can move them when the
+// session starts, so what the editor shows is an estimate. It is built on buildIntervals itself, so
+// it counts exactly the way the player does (own seconds for holds and cardio, an exercise's own
+// rest, no rest after the last set). The cap keeps a typo'd 9999 sets from freezing the editor.
+const SETS_CAP = 100
+
+/**
+ * What the routine would run as an automated workout: { sec, sets, exercises, workSec, restSec }, the
+ * time in whole seconds, summed over the same blocks the player counts down.
+ */
+export function estimateRoutine(routine, settings = intervalSettings(routine)) {
+  const ex = (routine?.ex || []).filter(Boolean)
+  const entries = ex.map(cfg => ({
+    id: cfg.id, target: cfg,
+    sets: Array.from({ length: Math.min(SETS_CAP, Math.max(1, Math.round(Number(cfg.sets)) || 1)) }, () => ({ done: false })),
+  }))
+  const blocks = buildIntervals(entries, settings)
+  const work = blocks.filter(b => b.kind === 'work')
+  return {
+    sec: blocks.reduce((n, b) => n + b.sec, 0),
+    sets: work.length,
+    exercises: ex.length,
+    workSec: work.reduce((n, b) => n + b.sec, 0),
+    restSec: blocks.reduce((n, b) => n + (b.kind === 'rest' ? b.sec : 0), 0),
+  }
+}
+
+/** The estimate as a short word-free value: { h, m } rounded to the minute (at least 1), or null for nothing. */
+export function approxTime(sec) {
+  if (!(sec > 0)) return null
+  const total = Math.max(1, Math.round(sec / 60))
+  return { h: Math.floor(total / 60), m: total % 60, total }
+}

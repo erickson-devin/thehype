@@ -202,6 +202,11 @@ export const DEF = {
   // started from nothing begins with it off (freshState below, v1.3.11): most people weigh in at
   // home in the morning, not at the gym, and the step cost a tap every workout.
   weighIn: true,
+  // Music for automated workouts (lib/auto-music.js, Settings → Workout → Music Integration): an
+  // address to call and/or a link that opens the music app when the workout starts. Per profile,
+  // synced like any setting. Empty means no music; an older profile without the keys reads as empty.
+  musicWebhookUrl: '',
+  musicDeepLink: '',
   // The connection banner at the top (components/SyncBanner.jsx, #369/#330). Off hides it; a
   // stuck sync then shows as a dot on Home instead. Defaults on; an older profile without the
   // key reads as on (`!== false`).

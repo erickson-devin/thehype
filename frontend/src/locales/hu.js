@@ -2245,4 +2245,7 @@ export default {
   'Your sports watch, calling you back.': 'A sportórád visszahív.',
   'Coach wants you back on the bar.': 'Az edző visszavár a rúdhoz.',
   'Gentle, for headphones or a quiet room.': 'Halk, fülhallgatóhoz vagy csendes helyre.',
+  'Music Integration': 'Zene-integráció',
+  'Room Speakers (Advanced)': 'Szobai hangszórók (haladó)',
+  'Phone / Headphone Audio': 'Telefon / fejhallgató hang',
 }

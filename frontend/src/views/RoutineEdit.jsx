@@ -5,12 +5,12 @@ import { useUI } from '../store/useUI.js'
 import { exOr } from '../lib/exercises.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { uid, exerciseNameText } from '../lib/format.js'
-import { t, exerciseNameFor, exerciseNameClass } from '../lib/i18n.js'
+import { t, tn, exerciseNameFor, exerciseNameClass } from '../lib/i18n.js'
 import { supersetUnits, moveRoutineEntry, cleanupSg, exLine, defaultConfig } from '../lib/history.js'
 import { Thumb } from '../components/Media.jsx'
 import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet, supersetSheet } from '../sheets.jsx'
 import { supersetMeta, setSupersetMeta } from '../lib/superset-meta.js'
-import { fmtRest } from '../lib/duration.js'
+import { fmtRest, fmtDuration } from '../lib/duration.js'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { Button, Row, SelectRow, Switch, Stepper } from '../components/ui.jsx'
@@ -22,7 +22,7 @@ import { markEntryUndone } from '../lib/sync-merge.js'
 import { MOBILE, printHtml } from '../lib/mobile.js'
 import { speedUnitOf } from '../lib/speed.js'
 import { POLICIES_FOR, POLICY_NAME, POLICY_DESC } from '../lib/progression.js'
-import { intervalSettings, WORK_SEC_RANGE, REST_SEC_RANGE } from '../lib/interval-plan.js'
+import { intervalSettings, estimateRoutine, approxTime, WORK_SEC_RANGE, REST_SEC_RANGE } from '../lib/interval-plan.js'
 import BodyMap from '../components/BodyMap.jsx'
 import { loadOfRoutine, rankOf, MUSCLE_NAME } from '../lib/muscles.js'
 
@@ -510,6 +510,20 @@ export default function RoutineEdit() {
         <Stepper label={t('Rest interval')} unit={t('sec')} value={iv.restSec} step={5} min={REST_SEC_RANGE[0]} max={REST_SEC_RANGE[1]} decimal={false}
           onChange={v => update(s => { s.routines.find(x => x.id === id).autoRestSec = Math.round(v) })} />
         <div className="small dim" style={{ margin: '6px 2px 0' }}>{t('Work applies to rep sets. Timed holds and cardio use their own length, and an exercise’s own rest wins over this one.')}</div>
+        {/* How long the routine would run as it stands, counted the way the player counts it
+            (lib/interval-plan.js estimateRoutine). Live: it follows every edit of the exercises, their
+            sets and the two intervals above. An estimate, since a progression rule can change the
+            sets when the session starts. */}
+        {(() => {
+          const est = estimateRoutine(r, iv), at = approxTime(est.sec)
+          const value = at ? '~' + [at.h ? at.h + ' h' : '', at.m || !at.h ? at.m + ' ' + t('min') : ''].filter(Boolean).join(' ') : undefined
+          return <div style={{ marginTop: 10 }}>
+            <Row icon="stopwatch" iconTint="var(--green)" title={t('Estimated duration')} value={value}
+              subtitle={at
+                ? [tn('{0} set', '{0} sets', est.sets), t('{0} work + {1} rest', fmtDuration(est.workSec), fmtDuration(est.restSec))].join(' · ')
+                : t('Add exercises to see how long it runs.')} />
+          </div>
+        })()}
       </div>
     })()}
     <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
