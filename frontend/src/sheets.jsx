@@ -2690,7 +2690,13 @@ export const workoutDetailSheet = w => ui().openSheet(close => <WorkoutDetail w=
 /* ============================ calendar ============================ */
 function Calendar({ start, close }) {
   const st = useStore(s => s.S)
-  const [cur, setCur] = useState(() => { const d = start ? new Date(start) : new Date(); d.setDate(1); return d })
+  // `start` is a 'YYYY-MM-DD' day, which `new Date(string)` reads as UTC midnight: west of UTC that is
+  // the evening before, and the 1st of a month opened the month prior. Build it in local time.
+  const [cur, setCur] = useState(() => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(start || ''))
+    const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : start ? new Date(start) : new Date()
+    d.setDate(1); return d
+  })
   const y = cur.getFullYear(), mo = cur.getMonth()
   const byDay = {}
   st.workouts.forEach(w => {
