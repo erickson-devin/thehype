@@ -51,6 +51,11 @@ const subs = new Set()
 const notify = () => { subs.forEach(f => f()) }
 let lastShowEn = undefined
 let lastEnOnly = undefined
+// Each setLang call takes a number; one that is no longer the latest when its packs arrive drops
+// its result, so a slow earlier load cannot overwrite a later choice. `lastFailed`: the last applied
+// language was missing a pack, so choosing it again retries instead of exiting early.
+let langSeq = 0
+let lastFailed = false
 
 export async function setLang(l, showEn, enOnly) {
   if (!LANGS[l]) l = 'en'
@@ -58,21 +63,24 @@ export async function setLang(l, showEn, enOnly) {
   const only = enOnly === true
   // Both display switches participate in the early-exit, so toggling the parens or the
   // English-only switch re-applies state even when l did not change.
-  if (l === getLang() && getVersion() > 0 && show === lastShowEn && only === lastEnOnly) return
+  if (l === getLang() && getVersion() > 0 && show === lastShowEn && only === lastEnOnly && !lastFailed) return
+  const seq = ++langSeq
   // A derived locale (de-CH) ships no packs of its own: it loads its base language's and
   // transforms the strings on the way through. `l` stays the selected language throughout, so
   // dateLocale() still reports de-CH and formats numbers Swiss-style.
   lastShowEn = show
   lastEnOnly = only
   const base = baseLang(l)
-  let dict = {}, instr = null, exerciseNames = null
-  try { dict = base === 'en' ? {} : (await localePacks['../locales/' + base + '.js']()).default } catch (e) { dict = {} }
-  try { instr = base === 'en' || !INSTR_LANGS.includes(base) ? null : (await instrPacks['../instr/' + base + '.js']()).default } catch (e) { instr = null }
+  let dict = {}, instr = null, exerciseNames = null, failed = false
+  try { dict = base === 'en' ? {} : (await localePacks['../locales/' + base + '.js']()).default } catch (e) { dict = {}; if (base !== 'en') failed = true }
+  try { instr = base === 'en' || !INSTR_LANGS.includes(base) ? null : (await instrPacks['../instr/' + base + '.js']()).default } catch (e) { instr = null; if (base !== 'en' && INSTR_LANGS.includes(base)) failed = true }
   try {
     exerciseNames = base === 'en' || !EXERCISE_NAME_LANGS.includes(base)
       ? null
       : (await exerciseNamePacks['../exercise-names/' + base + '.js']()).default
-  } catch (e) { exerciseNames = null }
+  } catch (e) { exerciseNames = null; if (base !== 'en' && EXERCISE_NAME_LANGS.includes(base)) failed = true }
+  if (seq !== langSeq) return
+  lastFailed = failed
   _setLangState(l, derivePack(l, dict), derivePack(l, instr), derivePack(l, exerciseNames), show, only)
   if (detailsLoaded) loadDetails()
   document.documentElement.lang = l

@@ -39,3 +39,11 @@ describe('weeklyWeights', () => {
     expect(weeklyWeights(undefined, 1)).toEqual([])
   })
 })
+
+describe('weeklyWeights malformed days', () => {
+  it('skips entries whose day is not an ISO date string', () => {
+    const weeks = weeklyWeights([{ d: 'garbage', w: 80 }, { d: '2026-10-12', w: 81 }, { d: 20261012, w: 82 }], 1)
+    expect(weeks).toHaveLength(1)
+    expect(weeks[0]).toMatchObject({ key: '2026-10-12', n: 1, avg: 81, delta: null })
+  })
+})

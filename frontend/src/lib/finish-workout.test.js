@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCompletedWorkout, sessionEnd, FORGOTTEN_GAP_MS } from './finish-workout.js'
+import { buildCompletedWorkout, sessionEnd, finishRecords, FORGOTTEN_GAP_MS } from './finish-workout.js'
 import { cascadeWeight } from './history.js'
 import { buildSessionEntries } from './session-start.js'
 import { makeSideSet, setSideField, toggleSide, WEIGHT_ORIGIN_MANUAL } from './workout-model.js'
@@ -328,5 +328,28 @@ describe('sessionEnd: a workout finished long after its last set', () => {
       sides: { L: { w: 20, r: 8, done: true }, R: { w: 20, r: 8, done: false } },
     }] }] }
     expect(sessionEnd(active, T0 + FORGOTTEN_GAP_MS + 1)).toBe(T0)
+  })
+})
+
+describe('finishRecords', () => {
+  const hist = { unit: 'kg', workouts: [{ d: '2026-01-01', entries: [{ id: '0025', sets: [{ w: 100, r: 5, done: true }] }] }] }
+  const act = sets => ({ entries: [{ id: '0025', sets }] })
+  it('a heavier top set is a PR', () => {
+    expect(finishRecords(hist, act([{ w: 102.5, r: 5, done: true }]))).toEqual({ prs: ['0025'], e1prs: [] })
+  })
+  it('the same weight for more reps is an estimated-1RM record, not a PR', () => {
+    const r = finishRecords(hist, act([{ w: 100, r: 8, done: true }]))
+    expect(r.prs).toEqual([])
+    expect(r.e1prs[0].id).toBe('0025')
+    expect(r.e1prs[0].prev).toBeCloseTo(116.7, 1)
+  })
+  it('an unchecked set records nothing', () => {
+    expect(finishRecords(hist, act([{ w: 120, r: 5, done: false }])).prs).toEqual([])
+  })
+  it('a warm-up row records nothing', () => {
+    expect(finishRecords(hist, act([{ w: 140, r: 5, done: true, phase: 'warmup' }])).prs).toEqual([])
+  })
+  it('with no history, any loaded work set is a PR', () => {
+    expect(finishRecords({ unit: 'kg', workouts: [] }, act([{ w: 60, r: 5, done: true }])).prs).toEqual(['0025'])
   })
 })

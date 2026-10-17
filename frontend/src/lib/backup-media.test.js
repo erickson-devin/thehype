@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { exportBackupZip, readBackupFile, backupImportError, storeBackupMedia, sanitizeCustomMedia, BACKUP_JSON } from './backup-media.js'
+import { exportBackupZip, readBackupFile, backupImportError, storeBackupMedia, sanitizeCustomMedia, sanitizeWorkoutShape, BACKUP_JSON } from './backup-media.js'
 import { createMediaStore, memoryBackend } from './media-store.js'
 import { zipStore, readZip } from './zip.js'
 import { sha256Hex } from './sha256.js'
@@ -148,5 +148,21 @@ describe('a workout\'s photos and videos in the zip', () => {
     const into = createMediaStore(memoryBackend())
     expect(await storeBackupMedia(read.files, { media: into })).toEqual({ stored: 2, skipped: 0 })
     expect(await into.get(v.hash)).toMatchObject({ mime: 'video/mp4', pending: true })
+  })
+})
+
+describe('sanitizeWorkoutShape', () => {
+  it('drops junk workouts and gives every workout and entry its arrays', () => {
+    const st = sanitizeWorkoutShape({ workouts: [null, 5, { id: 'a', entries: [null, { id: 'x' }, { id: 'y', sets: [null, { w: 1, r: 1, done: true }] }] }, { id: 'b' }], routines: [] })
+    expect(st.workouts.length).toBe(2)
+    expect(st.workouts[0].entries).toEqual([{ id: 'x', sets: [] }, { id: 'y', sets: [{ w: 1, r: 1, done: true }] }])
+    expect(st.workouts[1].entries).toEqual([])
+  })
+  it('returns a well-formed state unchanged', () => {
+    const st = { workouts: [{ id: 'a', entries: [{ id: 'x', sets: [{ w: 1, r: 1, done: true }] }] }], routines: [] }
+    expect(sanitizeWorkoutShape(structuredClone(st))).toEqual(st)
+  })
+  it('leaves a state without a workouts array alone', () => {
+    expect(sanitizeWorkoutShape({ routines: [] })).toEqual({ routines: [] })
   })
 })

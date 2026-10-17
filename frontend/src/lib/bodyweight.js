@@ -14,7 +14,7 @@ import { weekKey } from './format.js'
 export function weeklyWeights(bodyweight, ws) {
   const byWeek = new Map()
   for (const b of Array.isArray(bodyweight) ? bodyweight : []) {
-    if (!b?.d || !(Number(b.w) > 0)) continue
+    if (typeof b?.d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(b.d) || !(Number(b.w) > 0)) continue
     const key = weekKey(b.d, ws)
     if (!byWeek.has(key)) byWeek.set(key, [])
     byWeek.get(key).push(b)

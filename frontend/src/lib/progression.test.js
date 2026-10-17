@@ -1140,3 +1140,17 @@ describe('a weight off the increment grid keeps its offset when it goes up (issu
     expect(p.weight).toBe(62.5)
   })
 })
+
+describe('malformed history', () => {
+  const S = { unit: 'kg', workouts: [null, { d: '2026-01-01', entries: [{ id: '0025' }] }, { d: '2026-01-02', entries: [{ id: '0025', target: { sets: 1, reps: 5 }, sets: [{ w: 100, r: 5, done: true }] }] }] }
+  it('sessionsFor skips null workouts and entries with no sets', () => {
+    let s
+    expect(() => { s = sessionsFor(S, '0025', { id: '0025', sets: 1, reps: 5 }) }).not.toThrow()
+    expect(s).toHaveLength(1)
+  })
+  it('nextPrescription still progresses from the one good session', () => {
+    const p = nextPrescription(S, { id: '0025', sets: 1, reps: 5, prog: 'linear' }, null)
+    expect(p.kind).toBe('up')
+    expect(p.weight).toBe(102.5)
+  })
+})

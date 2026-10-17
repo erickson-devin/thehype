@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { finishCompare, trendOf } from './finish-compare.js'
+import { finishCompare, finishCardio, trendOf } from './finish-compare.js'
+import { EXDB } from './exercises.js'
 
 const set = (w, r, extra = {}) => ({ w, r, done: true, ...extra })
 const routine = { id: 'r1', name: 'A', prog: 'linear', ex: [{ id: 'bench', sets: 3, reps: 5, weight: 60, mode: 'reps' }] }
@@ -29,5 +30,26 @@ describe('last time and next time on the finish summary (#324)', () => {
     expect(row.last).toBeNull()
     expect(row.trend).toBeNull()
     expect(row.next).toBeNull()
+  })
+})
+
+describe('finish-compare edges', () => {
+  it('trendOf: equal, more reps, lighter top set, and no last', () => {
+    expect(trendOf([{ w: 100, r: 5 }], [{ w: 100, r: 5 }])).toBe(0)
+    expect(trendOf([{ w: 100, r: 6 }], [{ w: 100, r: 5 }])).toBe(1)
+    expect(trendOf([{ w: 97.5, r: 10 }], [{ w: 100, r: 1 }])).toBe(-1)
+    expect(trendOf([{ w: 100, r: 5 }], [])).toBeNull()
+  })
+  it('an exercise held twice in the session gives one row', () => {
+    const now = workout('w1', '2026-10-03', [set(60, 5)])
+    now.entries.push({ id: 'bench', rid: 'r1', target: { ...routine.ex[0] }, sets: [set(65, 5)] })
+    expect(finishCompare({ unit: 'kg', routines: [routine], workouts: [now] }, now)).toHaveLength(1)
+  })
+  it('finishCardio keeps only the done rows of a cardio entry', () => {
+    const id = EXDB.find(e => e.bp === 'cardio').id
+    const w = { entries: [{ id, sets: [{ min: 20, speed: 10, done: true }, { min: 10, speed: 8, done: false }] }] }
+    const rows = finishCardio(w)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].sets).toHaveLength(1)
   })
 })

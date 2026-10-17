@@ -1479,10 +1479,10 @@ export const useStore = create((set, get) => {
       if (MOBILE && S.autoBackup) writeAutoBackup(S)
     },
 
-    isGuest: () => localStorage.getItem('gym_guest') === '1',
+    isGuest: () => { try { return localStorage.getItem('gym_guest') === '1' } catch { return false } },
     // Choosing to go on without a server ends whatever was said about the last one.
     setGuest(v) {
-      if (v) localStorage.setItem('gym_guest', '1'); else localStorage.removeItem('gym_guest')
+      try { if (v) localStorage.setItem('gym_guest', '1'); else localStorage.removeItem('gym_guest') } catch { /* storage blocked: guest mode lasts the session */ }
       set({})
       if (v) setSync({ auth: false, offline: false, lastError: null })
     },
@@ -1917,8 +1917,10 @@ export const useStore = create((set, get) => {
       }
       // Demo build (GitHub Pages): no backend at all — seed once, stay in guest mode.
       if (DEMO) {
-        if (!localStorage.getItem(DEMO_SEEDED)) {
-          localStorage.setItem(DEMO_SEEDED, '1')
+        let seeded = false
+        try { seeded = !!localStorage.getItem(DEMO_SEEDED) } catch { seeded = false }
+        if (!seeded) {
+          try { localStorage.setItem(DEMO_SEEDED, '1') } catch { /* storage blocked */ }
           await get().resetDemo()
         }
         get().setGuest(true)

@@ -1,7 +1,10 @@
 // The persisted boundary for a finished session. Keep this pure so compatibility tests can
 // exercise the exact shape the UI writes without mounting React or mutating store state.
-import { bestWeightForEntry, cleanupSg } from './history.js'
-import { hasCompletedWork, isSideSet } from './workout-model.js'
+import { bestWeightForEntry, bestWeightFor, cleanupSg } from './history.js'
+import { hasCompletedWork, isSideSet, isWarmupRow } from './workout-model.js'
+import { betterWeight, beatsWeight } from './exercises.js'
+import { entryDbLoad } from './dumbbells.js'
+import { is1RMRecord } from './onerm.js'
 
 // planSec is live-session bookkeeping: a hold displaced before it finished puts its plan aside so
 // the row still knows what it is asking for (Workout.startTimed). A finished session keeps only
@@ -126,4 +129,25 @@ export function buildCompletedWorkout(active, { end = Date.now(), prs = [], snap
     ...(allNoProg ? { excludeFromProgression: true } : {}),
     ...(sessionNote ? { note: sessionNote } : {}),
   }
+}
+
+/**
+ * The records a session being finished sets, held against the history in `st`: `prs` the ids whose
+ * top work-set load beats the best so far, `e1prs` ({ id, ...rec }) the ones with only a better
+ * estimated 1RM — same weight for more reps, reported apart so it is not read as a load PR.
+ */
+export function finishRecords(st, active) {
+  const prs = []
+  const e1prs = []
+  active.entries.forEach(e => {
+    const loads = e.sets.filter(s => s.done && !isWarmupRow(s)).map(s => s.w).filter(w => w > 0)
+    const mx = loads.length ? loads.reduce((a, b) => betterWeight(e.id, a, b)) : 0
+    // Held against history read the way this session logged a dumbbell weight (lib/dumbbells.js).
+    if (beatsWeight(e.id, mx, bestWeightFor(st, e.id, entryDbLoad(e)))) prs.push(e.id)
+    // A heavier estimate without a heavier top set is its own kind of progress —
+    // same weight for more reps. Reported separately so it can't be read as a load PR.
+    const rec = is1RMRecord(st, e.id, e)
+    if (rec && !prs.includes(e.id)) e1prs.push({ id: e.id, ...rec })
+  })
+  return { prs, e1prs }
 }

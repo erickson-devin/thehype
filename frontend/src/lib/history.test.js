@@ -1656,3 +1656,14 @@ describe('timed per-side pairs come off as a pair', () => {
     expect(setSpanAt([{ sec: 30, side: 'L' }, { sec: 30 }], 0)).toEqual([0, 1])
   })
 })
+
+describe('malformed history', () => {
+  const S = { unit: 'kg', workouts: [null, { d: '2026-01-01', entries: [{ id: '0025' }] }, { d: '2026-01-02', entries: [{ id: '0025', target: { sets: 1, reps: 5 }, sets: [{ w: 100, r: 5, done: true }] }] }] }
+  it('lastEntryFor skips null workouts and set-less entries', () => {
+    expect(lastEntryFor(S, '0025').d).toBe('2026-01-02')
+  })
+  it('setsDone / setsDoneActive tolerate entries with no sets', () => {
+    expect(setsDone({ entries: [{ id: 'x' }] })).toBe(0)
+    expect(setsDoneActive({ entries: [{ id: 'x' }] })).toBe(0)
+  })
+})

@@ -340,6 +340,7 @@ export function sessionsFor(S, exId, fallback, rid) {
 function sessionsIn(S, exId, fallback, rid) {
   const out = []
   ;(S.workouts || []).forEach(w => {
+    if (!w || typeof w !== 'object') return
     const entry = (w.entries || []).find(e => e && e.id === exId && (!rid || entryRoutineId(w, e) === rid))
     if (!entry) return
     // A session that does not count for this exercise cannot become the baseline for its next
@@ -348,7 +349,7 @@ function sessionsIn(S, exId, fallback, rid) {
     // only its own. `noProg` is frozen onto the entry at build time, so later routine edits
     // never rewrite it. This is the only progression-exclusion path in the file.
     if (entryExcluded(w, entry)) return
-    if (!entry.sets.some(s => s.done && !isWarmupRow(s))) return
+    if (!Array.isArray(entry.sets) || !entry.sets.some(s => s && s.done && !isWarmupRow(s))) return
     const slot = entryRoutineId(w, entry)
     out.push({ d: w.d, ...(slot ? { rid: slot } : {}), ...(entry.planned ? { planned: entry.planned } : {}), ...readSession(entry, fallback) })
   })

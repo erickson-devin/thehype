@@ -367,6 +367,7 @@ function lastEntryIn(S, exId, rid) {
   const workouts = S.workouts || []
   for (let i = workouts.length - 1; i >= 0; i--) {
     const w = workouts[i]
+    if (!w) continue
     const en = entryIn(w, exId, rid)
     if (!en) continue
     // A session that does not count — a planned deload, or a rehab block merged into a real
@@ -379,7 +380,7 @@ function lastEntryIn(S, exId, rid) {
     // walks the working weight DOWN a little every session, and counting the ramp rows makes a
     // 3x5 come back as a 5-set exercise. Warm-ups are already excluded from volume, records and
     // progression; this is the same rule one level up.
-    const done = en.sets.filter(s => s.done && !isWarmupRow(s))
+    const done = (Array.isArray(en.sets) ? en.sets : []).filter(s => s && s.done && !isWarmupRow(s))
     // `target` is what the session prescribed; finished workouts carry it so labels and the
     // progression engine can read a session back the way it was logged. Older workouts have
     // none — modeOf() falls back to the body part for them, which is what they were.
@@ -792,12 +793,12 @@ export const setUnitsTotal = entries => (entries || []).reduce((n, e) => n + (e.
 
 export function setsDone(w) {
   let n = 0
-  w.entries.forEach(e => e.sets.forEach(s => { n += doneUnits(s) }))
+  ;(w?.entries || []).forEach(e => (e?.sets || []).forEach(s => { n += doneUnits(s) }))
   return n
 }
 export function setsDoneActive(A) {
   let n = 0
-  if (A) A.entries.forEach(e => e.sets.forEach(s => { n += doneUnits(s) }))
+  if (A) (A?.entries || []).forEach(e => (e?.sets || []).forEach(s => { n += doneUnits(s) }))
   return n
 }
 export const lastBW = S => (S.bodyweight.length ? S.bodyweight[S.bodyweight.length - 1] : null)

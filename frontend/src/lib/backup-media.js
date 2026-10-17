@@ -60,6 +60,19 @@ export function sanitizeCustomMedia(state) {
   return state
 }
 
+/** Normalise the shape of a restored backup's workouts so every reader can trust it: items that
+ *  are not objects are dropped, and each workout gets an `entries` array whose entries each get a
+ *  `sets` array of objects. Mutates and returns the state; no `workouts` array, nothing to do. */
+export function sanitizeWorkoutShape(state) {
+  if (!Array.isArray(state?.workouts)) return state
+  state.workouts = state.workouts.filter(w => w && typeof w === 'object')
+  for (const w of state.workouts) {
+    w.entries = Array.isArray(w.entries) ? w.entries.filter(e => e && typeof e === 'object') : []
+    for (const e of w.entries) e.sets = Array.isArray(e.sets) ? e.sets.filter(x => x && typeof x === 'object') : []
+  }
+  return state
+}
+
 /**
  * The zip for "Export with photos & videos": { blob, included, missing }. Each file comes from the
  * local store, or — signed in — is fetched into it first (`fetchOne`, lib/media-sync.js
@@ -122,7 +135,7 @@ export async function readBackupFile(file) {
     state = JSON.parse(await file.text())
     if (!isBackup(state)) throw notBackup()
   }
-  return { state: sanitizeCustomMedia(state), files, zip }
+  return { state: sanitizeWorkoutShape(sanitizeCustomMedia(state)), files, zip }
 }
 
 /**

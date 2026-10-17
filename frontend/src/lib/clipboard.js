@@ -8,8 +8,9 @@ export async function copyText(text) {
       return true
     }
   } catch { /* refused (no permission, page not focused): the selection copy may still work */ }
+  let area
   try {
-    const area = document.createElement('textarea')
+    area = document.createElement('textarea')
     area.value = text
     area.setAttribute('readonly', '')
     area.style.position = 'fixed'
@@ -19,9 +20,10 @@ export async function copyText(text) {
     // iOS selects nothing on select() alone.
     area.setSelectionRange(0, text.length)
     const ok = document.execCommand('copy')
-    area.remove()
     return !!ok
   } catch {
     return false
+  } finally {
+    area?.remove()
   }
 }
