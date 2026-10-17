@@ -993,6 +993,18 @@ describe('preview_session', () => {
     }
   })
 
+  test('a routine with no exercises, or a hole in its list, still previews', () => {
+    S.routines = [
+      { id: 'bare', name: 'Bare' },
+      { id: 'holey', name: 'H', ex: [null, { id: '0025', sets: 3, reps: 5, mode: 'reps' }] }
+    ]
+    S.week = {}
+    S.dayPlan = {}
+    _seedStateForTests(S)
+    expect(call('preview_session', { routine_id: 'bare' }).exercises).toEqual([])
+    expect(call('preview_session', { routine_id: 'holey' }).exercises.length).toBe(1)
+  })
+
   test('triple progression previews its per-set aims and failure plan', () => {
     only({ id: '0025', sets: 3, setsMax: 5, reps: 12, repsMin: 8, weight: 50, lastToFailure: true }, { prog: 'triple' })
     const e = call('preview_session').exercises[0]

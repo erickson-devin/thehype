@@ -1,4 +1,4 @@
-/* The eight read-only tools. Each handler returns JSON; labels.js pre-substitutes any
+/* The nine read-only tools. Each handler returns JSON; labels.js pre-substitutes any
    {0}/{1} template the lib returns so the LLM gets final text, not template strings.
    ISO dates are validated on the way in; the handlers never see 'yesterday'. */
 import { z } from 'zod'
@@ -568,8 +568,10 @@ export const previewSession = {
     // The same builder the app starts a session with (sheets.jsx beginWorkout → session-start.js):
     // prescription, step, progression-off targets, deload routines and warm-up ramps all come from
     // there, so the preview cannot drift from what the screen shows.
-    const built = withCustomsIndexed(S, () => buildSessionEntries(S, r))
-    const exercises = (r.ex || []).map((cfg, i) => {
+    // A routine with no exercise list, or a hole in it, previews as what it has.
+    const exList = (r.ex || []).filter(e => e && e.id)
+    const built = withCustomsIndexed(S, () => buildSessionEntries(S, { ...r, ex: exList }))
+    const exercises = exList.map((cfg, i) => {
       const ex = exerciseOf(cfg.id, S)
       const mode = modeOf({ ...cfg, id: cfg.id })
       const plan = built[i].plan
