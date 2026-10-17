@@ -50,6 +50,8 @@ vi.mock('../lib/coach-api.js', () => ({
   requestPlan: vi.fn(() => Promise.resolve({})),
   disclosure: vi.fn(() => Promise.resolve(null)),
   JOB_ERRORS: { busy: 'the app’s busy line' },
+  // Same rule as the real one for the cases this file pins: a class with a line, else the message.
+  requestErrorText: e => (e?.data?.code === 'busy' ? 'the app’s busy line' : e?.message || 'Could not ask the Coach'),
 }))
 vi.mock('../coach.css', () => ({}))
 

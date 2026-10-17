@@ -18,7 +18,7 @@ const wire = { calls: [], answer: null }
 vi.mock('./capacitor-fetch.js', () => ({
   nativeFetch: async (url, init) => {
     wire.calls.push({ url, init, body: JSON.parse(init.body) })
-    const a = typeof wire.answer === 'function' ? wire.answer(wire.calls.length) : wire.answer
+    const a = await (typeof wire.answer === 'function' ? wire.answer(wire.calls.length) : wire.answer)
     return { ok: a.status < 300, status: a.status, text: async () => JSON.stringify(a.body), json: async () => a.body }
   }
 }))
@@ -167,6 +167,33 @@ describe('the Coach on a phone with its own key', () => {
     await local.localReview(state()); await settle()
     await local.localResolve()
     expect(device.data.pending).toBeNull()
+  })
+
+  it('a forget during a run does not resurrect the proposal', async () => {
+    let release
+    wire.answer = () => new Promise(r => { release = r })
+    await local.localReview(state())
+    await vi.waitFor(() => expect(wire.calls.length).toBe(1))
+    await local.localForget()
+    release(chat(JSON.stringify(review)))
+    await new Promise(r => setTimeout(r, 50))
+    const s = await local.localStatus()
+    expect(s.pending).toBeNull()
+    expect(s.lastError).toBeNull()
+    expect(s.job).toBeNull()
+  })
+
+  it('a forgotten run finishing does not clear a newer job', async () => {
+    let releaseFirst
+    wire.answer = n => n === 1 ? new Promise(r => { releaseFirst = r }) : new Promise(() => {})
+    await local.localReview(state())
+    await vi.waitFor(() => expect(wire.calls.length).toBe(1))
+    await local.localForget()
+    await local.localReview(state())
+    await vi.waitFor(() => expect(wire.calls.length).toBe(2))
+    releaseFirst(chat(JSON.stringify(review)))
+    await new Promise(r => setTimeout(r, 50))
+    expect((await local.localStatus()).job).toBeTruthy()
   })
 
   it('creates a plan from an intake, and refines it against the previous bundle', async () => {

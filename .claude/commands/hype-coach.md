@@ -12,7 +12,12 @@ When working on or evaluating the AI Coach in `api/coach/` or frontend coaching 
   - Respect privacy: all coaching context comes from the local database / user state, with zero telemetry.
 
 ### Core Files
-- `api/coach/prompts/`: System prompts and message templates for workout reviews and recommendations.
+- `api/coach/core/system-prompt.js`: The Coach's system prompt.
+- `api/coach/core/prompts.js`: Message templates for reviews, plans and debriefs.
+- `api/coach/prompts/*.md`: Prompt text files.
 - `api/coach/routes.js`: HTTP endpoints for coaching actions.
 - `api/coach/jobs.js`: Asynchronous coach analysis jobs.
-- `frontend/src/views/CoachView.jsx` (or coach UI components): Displays coach insights, hypes, and workout suggestions.
+- `frontend/src/views/CoachChat.jsx`, `CoachIntake.jsx`: The coach chat and intake screens.
+- `frontend/src/lib/coach*.js`: Client-side proposal, API and on-phone coach logic.
+
+Note: the Hype persona is not yet in the system prompt; it still says "You are the openGym Coach".

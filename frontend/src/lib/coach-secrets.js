@@ -3,10 +3,10 @@
 // S (which syncs and exports), never in localStorage (which the WebView evicts and any page on
 // the same origin can read), never in the coach device file next to it.
 //
-// The plugin is imported lazily and every call is wrapped: on a plain web dev run it stores
-// to localStorage by its own admission, and in a test there is no platform at all. In both
-// cases the fallback is a process-local map that forgets on reload, which is the honest
-// behaviour for a place that cannot keep a secret.
+// The plugin is imported lazily and every call is wrapped: on a plain web dev run its web
+// version stores to localStorage by its own admission. Only where the plugin cannot be used at
+// all (a test, a failed import) is the fallback a process-local map that forgets on reload,
+// which is the honest behaviour for a place that cannot keep a secret.
 const KEY = 'coach.apiKey'
 const memory = new Map()
 

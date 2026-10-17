@@ -105,3 +105,15 @@ describe('approxTime', () => {
     expect(approxTime(3900)).toEqual({ h: 1, m: 5, total: 65 })
   })
 })
+
+describe('intervalSettings: unset values fall back to the defaults', () => {
+  it('treats null, an empty string and a boolean as unset', () => {
+    expect(intervalSettings({ autoRestSec: null })).toEqual({ workSec: 40, restSec: 20 })
+    expect(intervalSettings({ autoRestSec: '' }).restSec).toBe(20)
+    expect(intervalSettings({ autoWorkSec: true }).workSec).toBe(40)
+  })
+  it('still reads a numeric string and a real zero rest', () => {
+    expect(intervalSettings({ autoRestSec: '15' }).restSec).toBe(15)
+    expect(intervalSettings({ autoRestSec: 0 }).restSec).toBe(0)
+  })
+})

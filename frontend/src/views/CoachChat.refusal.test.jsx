@@ -48,6 +48,8 @@ vi.mock('../lib/coach-api.js', () => ({
   setCohortShare: vi.fn(() => Promise.resolve({ ok: true })),
   jobErrorText: () => 'err',
   JOB_ERRORS: { busy: 'the app’s busy line' },
+  // Same rule as the real one for the cases this file pins: a class with a line, else the message.
+  requestErrorText: e => (e?.data?.code === 'busy' ? 'the app’s busy line' : e?.message || 'Could not ask the Coach'),
 }))
 vi.mock('../sheets.jsx', () => ({ startFlow: vi.fn(), confirmSheet: vi.fn() }))
 vi.mock('../lib/api.js', () => ({

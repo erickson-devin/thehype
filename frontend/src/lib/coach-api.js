@@ -176,6 +176,19 @@ export const BYOK_ERRORS = {
   get internal() { return t('Something went wrong on this phone.') }
 }
 
+/**
+ * The line the person sees when a request to the Coach is refused or never arrives: the class
+ * picks the app's own line; an unreachable server and a bare 5xx get one too; only a refusal
+ * with no line here ('shared') keeps the server's words.
+ */
+export function requestErrorText(e) {
+  const code = e?.data?.code
+  if (code && Object.hasOwn(JOB_ERRORS, code)) return JOB_ERRORS[code]
+  if (e instanceof TypeError || e?.code === 'network') return t('The Coach can’t be reached right now. Check your connection and try again.')
+  if (e?.status >= 500 && !e?.data?.error) return JOB_ERRORS.internal
+  return e?.message || t('Could not ask the Coach')
+}
+
 /** The line the person sees for a failed job — with the reason attached where they can act on it. */
 export function jobErrorText(cls, detail) {
   const own = LOCAL()

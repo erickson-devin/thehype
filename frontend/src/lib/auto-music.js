@@ -8,8 +8,10 @@
 //
 // What happens on Start (startWorkoutMusic, called from sheets.jsx beginWorkout):
 //   a webhook is set        → one silent no-cors request to it; the deep link is left alone
-//   no webhook, a deep link → the page navigates to it, which opens the app
+//   no webhook, a deep link → opens the music app (an https link in a new tab, so the app stays)
 //   neither                 → nothing; the timer carries on
+import { MOBILE } from './mobile.js'
+
 export const MUSIC_FIELD_MAX = 500
 
 // A link that runs code in this page, or reads a file, is not a way to open a music app. A profile
@@ -43,11 +45,20 @@ export function musicPlan(S) {
 }
 
 /**
+ * Opens a music link. In a browser an https link goes to a new tab, so the app (and its running
+ * timer) is not replaced; an app-scheme link, or any link inside the native shell, navigates.
+ */
+export function openLink(url, { win = globalThis.window, native = MOBILE } = {}) {
+  if (!native && /^https?:/i.test(url)) win.open(url, '_blank', 'noopener,noreferrer')
+  else win.location.href = url
+}
+
+/**
  * Starts the music for the profile `S` (the store's state). `fetchFn` and `open` are injectable for
  * tests. Never throws and never waits: the workout starts whatever the music does. Returns what it
  * did ('webhook', 'link') or null.
  */
-export function startWorkoutMusic(S, { fetchFn = globalThis.fetch, open = url => { window.location.href = url } } = {}) {
+export function startWorkoutMusic(S, { fetchFn = globalThis.fetch, open = url => openLink(url) } = {}) {
   const plan = musicPlan(S)
   if (!plan) return null
   try {

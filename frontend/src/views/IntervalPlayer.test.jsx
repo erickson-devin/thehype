@@ -24,6 +24,9 @@ vi.mock('../lib/sound.js', () => ({ unlock: vi.fn() }))
 vi.mock('../sheets.jsx', () => ({ finishWorkout: vi.fn() }))
 
 import { speak, countdownBeep } from '../lib/interval-audio.js'
+import { unlock } from '../lib/sound.js'
+import { finishWorkout } from '../sheets.jsx'
+import { getLang } from '../lib/i18n.js'
 
 let host, root
 beforeEach(() => {
@@ -49,6 +52,7 @@ afterEach(() => {
 })
 
 const tick = ms => act(async () => { vi.advanceTimersByTime(ms) })
+const button = label => [...host.querySelectorAll('button')].find(b => b.textContent.trim() === label)
 const said = () => speak.mock.calls.map(c => c[0])
 
 describe('the player’s start cues', () => {
@@ -84,5 +88,37 @@ describe('the player’s start cues', () => {
     // the 3-2-1 ticks still run, but every one is asked for silently (enabled = false)
     expect(countdownBeep.mock.calls.length).toBeGreaterThan(0)
     expect(countdownBeep.mock.calls.every(c => c[1] === false)).toBe(true)
+  })
+})
+
+describe('the player’s controls', () => {
+  it('unlocks audio on the Pause tap', () => {
+    unlock.mockClear()
+    act(() => { button('Pause').click() })
+    expect(unlock).toHaveBeenCalled()
+  })
+
+  it('End workout pauses the clock: no set is ticked and no rest announced afterwards', async () => {
+    act(() => { button('End workout').click() })
+    expect(finishWorkout).toHaveBeenCalledTimes(1)
+    await tick(15_000)
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(false)
+    expect(said().some(x => x.startsWith('Rest for'))).toBe(false)
+  })
+
+  it('speaks in the app language', () => {
+    expect(speak.mock.calls[0][1]).toBe(getLang())
+  })
+
+  it('ticks the set when a work block runs out', async () => {
+    await tick(10_000)
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
+    expect(typeof mocks.S.active.entries[0].sets[0].at).toBe('number')
+  })
+
+  it('Skip moves on without ticking the set', async () => {
+    act(() => { button('Skip').click() })
+    await tick(100)
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(false)
   })
 })

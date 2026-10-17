@@ -69,7 +69,7 @@ export async function writeJsonFile(name, data) {
   try {
     const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
     await Filesystem.writeFile({ path: name, directory: Directory.Data, data: JSON.stringify(data), encoding: Encoding.UTF8 })
-  } catch (e) { /* not a Capacitor build, or the write failed — the caller's in-memory copy stands */ }
+  } catch (e) { /* the write failed — the caller's in-memory copy stands. (Outside a native shell the filesystem plugin's web version persists to IndexedDB, so a plain browser run still keeps the file.) */ }
 }
 
 export async function loadRemoteFile() {

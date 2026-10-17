@@ -10,6 +10,7 @@ export const WORK_SEC_RANGE = [5, 600]
 export const REST_SEC_RANGE = [0, 300]
 
 const pick = (v, [lo, hi], fallback) => {
+  if (v == null || v === '' || typeof v === 'boolean') return fallback   // Number(null), Number('') and Number(true) are 0 and 1, not 'unset'
   const n = Math.round(Number(v))
   return Number.isFinite(n) && n >= lo && n <= hi ? n : fallback
 }

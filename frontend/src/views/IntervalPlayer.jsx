@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { exOr } from '../lib/exercises.js'
 import { exerciseNameText } from '../lib/format.js'
-import { t } from '../lib/i18n.js'
+import { t, getLang } from '../lib/i18n.js'
 import { unlock } from '../lib/sound.js'
 import { bestWeightForEntry } from '../lib/history.js'
 import { buildIntervals, intervalSettings, nextWork, remainingSec } from '../lib/interval-plan.js'
@@ -59,6 +59,7 @@ export default function IntervalPlayer() {
   }), [update])
 
   const togglePause = () => {
+    unlock(sound)   // a tap is the gesture a browser needs before it lets audio start
     if (!paused) remainMs.current = Math.max(0, endAt.current - Date.now())
     setPaused(p => !p)
   }
@@ -90,7 +91,8 @@ export default function IntervalPlayer() {
     return () => clearInterval(id)
   }, [idx, paused, finished, block, advance, sound])
 
-  // The audio context started inside the tap that opened the player, before the first cue needs it.
+  // Best effort at mount (the tap that opened the player may still count as a gesture); Pause
+  // unlocks again, inside a tap that certainly does.
   useEffect(() => { unlock(sound); return stopSpeaking }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // What is said when a block begins. Once per block: pausing and resuming do not repeat it.
@@ -98,15 +100,15 @@ export default function IntervalPlayer() {
   // look at the screen to know the rest is over; the first one also names the exercise.
   useEffect(() => {
     if (!block || finished || mutedRef.current) return
-    if (block.kind === 'rest') { speak(t('Rest for {0} seconds. Next up: {1}', block.sec, nameOf(coming?.id))); return }
+    if (block.kind === 'rest') { speak(t('Rest for {0} seconds. Next up: {1}', block.sec, nameOf(coming?.id)), getLang()); return }
     countdownBeep(0, !!sound)
-    speak(idx === 0 ? t('First up: {0}. Go!', nameOf(block.id)) : t('Go!'))
+    speak(idx === 0 ? t('First up: {0}. Go!', nameOf(block.id)) : t('Go!'), getLang())
   }, [idx]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Out of blocks: say so, then hand over to the ordinary finish (it asks about anything unchecked).
   useEffect(() => {
     if (!finished) return
-    if (!mutedRef.current) speak(t('Workout complete'))
+    if (!mutedRef.current) speak(t('Workout complete'), getLang())
     finishWorkout()
   }, [finished])
 
@@ -162,7 +164,13 @@ export default function IntervalPlayer() {
       </button>
       <div style={{ display: 'flex', gap: 12 }}>
         <button className="btn ghost dim" style={{ flex: 1 }} onClick={() => advance(false)}>{t('Skip')}</button>
-        <button className="btn ghost dim" style={{ flex: 1 }} onClick={() => { stopSpeaking(); finishWorkout() }}>{t('End workout')}</button>
+        <button className="btn ghost dim" style={{ flex: 1 }} onClick={() => {
+          // Stop the clock first: the finish sheet can be cancelled, and a running block must not
+          // tick a set or announce a rest behind it.
+          stopSpeaking()
+          if (!paused) { remainMs.current = Math.max(0, endAt.current - Date.now()); setPaused(true) }
+          finishWorkout()
+        }}>{t('End workout')}</button>
       </div>
     </div>
   </div>

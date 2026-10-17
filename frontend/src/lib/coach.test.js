@@ -3,7 +3,7 @@ import {
   canonicalPlan, planHash, hashPlan, markStale, applicable, currentValue, ROUTINE_NAME_SEEN,
   pushSnapshot, revertLast, canRevert, appendLog, applyChangeSet, applyCreatedPlan,
   recordDismissal, validateProposal, coachAvailable, hasConsent,
-  recordDebrief, logEntry, lightBundle, changeValues,
+  recordDebrief, logEntry, cadenceSupported, lightBundle, changeValues,
   CHANGE_TYPES, SNAPSHOT_MAX, LOG_MAX, CONSENT_VERSION
 } from './coach.js'
 import { registerCustom } from './exercises.js'
@@ -694,5 +694,14 @@ describe('what the log keeps, so a decision never makes a proposal vanish', () =
     expect(b.basedOn).toBeUndefined()
     expect(Object.keys(b.routines[0].ex[0])).not.toContain('secret')
     expect(lightBundle(null)).toBeNull()
+  })
+})
+
+describe('cadenceSupported', () => {
+  it('is off only on a phone that runs the Coach with its own key', () => {
+    expect(cadenceSupported({ mobile: true, coachMode: 'byok' })).toBe(false)
+    expect(cadenceSupported({ mobile: true, coachMode: 'server' })).toBe(true)
+    expect(cadenceSupported({ mobile: false, coachMode: 'byok' })).toBe(true)
+    expect(cadenceSupported({})).toBe(true)
   })
 })

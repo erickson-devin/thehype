@@ -9,8 +9,7 @@
 // more here than elsewhere in the app: this is the code that edits a plan on the strength of
 // something a language model said, and "it looked right on my phone" is not a standard.
 //
-// The screens that call it arrive in PR 4. Nothing in this file needs one to be tested, which
-// is the point of it being separate from them.
+// Nothing in this file needs a screen to be tested, which is the point of it being separate.
 
 import { EXIDX, canonicalExId } from './exercises.js'
 import { modeOf, isBw, isPerSide, cleanupSg } from './history.js'
@@ -61,6 +60,9 @@ const coachOf = s => (s.coach = s.coach || emptyCoach())
 export const coachAvailable = (config, user, { demo, mobile, coachMode } = {}) =>
   mobile ? (coachMode === 'byok' || !!(config?.coach?.enabled && user))
     : demo ? true : !!(config?.coach?.enabled && user)
+
+// Automatic reviews are run by the server's scheduler; a phone with its own key has none.
+export const cadenceSupported = ({ mobile, coachMode } = {}) => !(mobile && coachMode === 'byok')
 
 // What each data category means, in the user's words. Rendered from the same list the payload
 // builder uses (api/coach/core/categories.js), so the screen cannot promise less than leaves.

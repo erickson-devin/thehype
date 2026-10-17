@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { cleanDeepLink, cleanWebhookUrl, musicPlan, startWorkoutMusic, MUSIC_FIELD_MAX } from './auto-music.js'
+import { cleanDeepLink, cleanWebhookUrl, musicPlan, openLink, startWorkoutMusic, MUSIC_FIELD_MAX } from './auto-music.js'
 
 describe('cleanWebhookUrl', () => {
   it('keeps an http or https address, trimmed', () => {
@@ -70,5 +70,27 @@ describe('startWorkoutMusic', () => {
     await rejected.catch(() => {})
     expect(() => startWorkoutMusic({ musicWebhookUrl: hook }, { fetchFn: () => { throw new TypeError('blocked') } })).not.toThrow()
     expect(() => startWorkoutMusic({ musicDeepLink: link }, { open: () => { throw new Error('no handler') } })).not.toThrow()
+  })
+})
+
+describe('openLink', () => {
+  const fake = () => ({ open: vi.fn(), location: { href: '' } })
+  it('opens an https link in a new tab on the web, leaving the app in place', () => {
+    const win = fake()
+    openLink('https://open.spotify.com/playlist/x', { win, native: false })
+    expect(win.open).toHaveBeenCalledWith('https://open.spotify.com/playlist/x', '_blank', 'noopener,noreferrer')
+    expect(win.location.href).toBe('')
+  })
+  it('navigates for an app-scheme link', () => {
+    const win = fake()
+    openLink('spotify:playlist:x', { win, native: false })
+    expect(win.location.href).toBe('spotify:playlist:x')
+    expect(win.open).not.toHaveBeenCalled()
+  })
+  it('navigates for any link inside the native shell', () => {
+    const win = fake()
+    openLink('https://open.spotify.com/playlist/x', { win, native: true })
+    expect(win.location.href).toBe('https://open.spotify.com/playlist/x')
+    expect(win.open).not.toHaveBeenCalled()
   })
 })

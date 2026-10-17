@@ -132,14 +132,17 @@ async function start(S, kind, opts) {
   if (cap.used >= cap.limit) throw Object.assign(new Error(t('The Coach is taking a breather. You’ve used today’s {0} runs on this phone.', cap.limit)), { status: 429, code: 'cap' })
 
   await bumpDaily()
-  job = { id: 'local-' + Date.now().toString(36), kind, state: 'running', startedAt: Date.now() }
+  const mine = job = { id: 'local-' + Date.now().toString(36), kind, state: 'running', startedAt: Date.now() }
   lastError = null
-  // Not awaited: the screens poll, exactly as they do against a server.
-  run(S, kind, opts, d, adapter).catch(e => { lastError = { errorClass: 'internal', detail: String(e && e.message || e) } }).finally(() => { job = null })
-  return { job }
+  // Not awaited: the screens poll, exactly as they do against a server. A forget while this
+  // runs clears `job`; `mine` lets the run notice and leave without touching what came after.
+  run(S, kind, opts, d, adapter, mine)
+    .catch(e => { if (job === mine) lastError = { errorClass: 'internal', detail: String(e && e.message || e) } })
+    .finally(() => { if (job === mine) job = null })
+  return { job: mine }
 }
 
-async function run(S, kind, opts, d, adapter) {
+async function run(S, kind, opts, d, adapter, mine) {
   const key = await getApiKey()
   const payload = payloadLib.build(S, {
     handle: await handle(), kind, intake: opts.intake, note: opts.note, refine: opts.refine, previous: opts.previous, workoutId: opts.workoutId,
@@ -150,6 +153,7 @@ async function run(S, kind, opts, d, adapter) {
     model: d.model || HTTP_PROVIDERS[d.provider].defaultModel, timeoutMs: timeoutFor(d.provider),
     invokeOpts: { env: envOf(d, key), fetch: nativeFetch }
   })
+  if (job !== mine) return  // forgotten while running
   if (!attempt.ok) {
     // There is no admin card on a phone, so the reason has to reach the person holding it:
     // the provider's own words for a refusal, the validator's for an answer that did not fit.
@@ -157,23 +161,23 @@ async function run(S, kind, opts, d, adapter) {
       ? attempt.errors.slice(0, 3).map(String).join(' · ').slice(0, 300)
       : null)
     lastError = { errorClass: attempt.errorClass, detail }
-    last = { id: job.id, kind, outcome: 'failed', errorClass: attempt.errorClass, at: Date.now() }
+    last = { id: mine.id, kind, outcome: 'failed', errorClass: attempt.errorClass, at: Date.now() }
     if (notify) notify({ kind: 'failed', errorClass: attempt.errorClass, detail })
     return
   }
   if (attempt.nochange) {
-    last = { id: job.id, kind, outcome: 'nochange', errorClass: null, at: Date.now(), reading: attempt.reading }
+    last = { id: mine.id, kind, outcome: 'nochange', errorClass: null, at: Date.now(), reading: attempt.reading }
     if (notify) notify({ kind: 'nochange', reading: attempt.reading })
     return
   }
   const pending = {
-    id: job.id, kind, createdAt: Date.now(), expiresAt: Date.now() + PENDING_DAYS * 86400000,
+    id: mine.id, kind, createdAt: Date.now(), expiresAt: Date.now() + PENDING_DAYS * 86400000,
     planHash: planHash(S), iteration: opts.iteration || 1,
     ...(kind === 'debrief' ? { workout: workoutMetaOf(S, opts.workoutId) } : {}),
     ...attempt.result
   }
   await saveCoachDevice({ pending })
-  last = { id: job.id, kind, outcome: 'ready', errorClass: null, at: Date.now() }
+  last = { id: mine.id, kind, outcome: 'ready', errorClass: null, at: Date.now() }
   if (notify) notify({ kind: 'ready', pending })
 }
 
