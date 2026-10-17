@@ -167,3 +167,4 @@ Custom slash commands for Claude Code are configured in `.claude/commands/`:
 2. For complex, multi-file, or architectural tasks, you must use the subagents.
 3. When using subagents, ALWAYS delegate the investigation and planning to the `analyst` subagent first.
 4. Once the `analyst` returns a plan, review it, and then delegate the actual implementation to the `coder` subagent.
+5. Trust but Verify: After the `coder` reports completion, NEVER trust its self-reported test results. You (the Orchestrator) must independently run the tests and verify the exit codes before declaring the task complete.
