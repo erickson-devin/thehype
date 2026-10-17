@@ -27,12 +27,17 @@ export function syncFile(file) {
 /** `content` at `file`, durably: temporary file, fsync, rename, fsync of the directory. */
 export function atomicWrite(file, content, mode) {
   const tmp = file + '.tmp';
-  const fd = fs.openSync(tmp, 'w', mode);
   try {
-    fs.writeFileSync(fd, content);
-    fs.fsyncSync(fd);
-  } finally { fs.closeSync(fd); }
-  if (mode != null) { try { fs.chmodSync(tmp, mode); } catch { /* a host filesystem that refuses chmod */ } }
-  fs.renameSync(tmp, file);
-  syncDir(path.dirname(file));
+    const fd = fs.openSync(tmp, 'w', mode);
+    try {
+      fs.writeFileSync(fd, content);
+      fs.fsyncSync(fd);
+    } finally { fs.closeSync(fd); }
+    if (mode != null) { try { fs.chmodSync(tmp, mode); } catch { /* a host filesystem that refuses chmod */ } }
+    fs.renameSync(tmp, file);
+    syncDir(path.dirname(file));
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch { /* never created */ }
+    throw e;
+  }
 }

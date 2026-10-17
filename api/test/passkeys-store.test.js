@@ -3,7 +3,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addPasskeyRecord, listPasskeys, removePasskeyRecord, passkeyRemovalRefused, renamePasskeyRecord, passkeyName, MAX_PASSKEYS
+  addPasskeyRecord, listPasskeys, removePasskeyRecord, passkeyRemovalRefused, renamePasskeyRecord, passkeyName, MAX_PASSKEYS, transportsOf
 } from '../passkeys-store.js';
 
 const cred = (id, userId = 'u1') => ({
@@ -131,5 +131,17 @@ describe('passkeyRemovalRefused', () => {
     assert.equal(passkeyRemovalRefused(db, 'u2', 'other', 1), null);
     assert.equal(passkeyRemovalRefused({}, 'u1', 'hello').code, 'not-found');
     assert.equal(db.creds.length, 3);
+  });
+});
+
+describe('transportsOf', () => {
+  it('keeps a short list of short strings', () => {
+    const out = transportsOf(['usb', 'x'.repeat(17), 5, ...Array(20).fill('nfc')]);
+    assert.equal(out[0], 'usb');
+    assert.ok(out.length <= 8);
+    assert.ok(out.every(x => typeof x === 'string' && x.length <= 16));
+  });
+  it('is empty for anything that is not an array', () => {
+    assert.deepEqual(transportsOf('usb'), []);
   });
 });

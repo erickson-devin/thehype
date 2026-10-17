@@ -12,6 +12,8 @@ import { canDropPrivileges } from './adapters/spawn.js';
 import { DATA_CATEGORIES } from './core/payload.js';
 import { validateBaseUrl, validateHeaders, baseUrlFor } from './core/providers.js';
 
+const str = v => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
+
 // Job failures the user sees, in the app's own voice. The raw provider detail never reaches
 // them — it goes to the admin card, which is where someone can act on it (FR-47).
 const USER_ERROR = {
@@ -77,7 +79,7 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
           kind: 'create',
           intake: body.intake || null,
           lang: body.lang,
-          refine: body.refine ? String(body.refine).slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING) : null
+          refine: str(body.refine) ? str(body.refine).slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING) : null
         });
         json(res, 202, { job });
       } catch (e) { failEnqueue(res, e); }
@@ -90,7 +92,7 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
         const job = jobs.enqueue(user.id, {
           kind: 'review',
           lang: body.lang,
-          note: body.note ? String(body.note).slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING) : null
+          note: str(body.note) ? str(body.note).slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING) : null
         });
         json(res, 202, { job });
       } catch (e) { failEnqueue(res, e); }
@@ -101,7 +103,7 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
       const user = guard(req, res); if (!user) return;
       const body = await readBody(req);
       try {
-        const job = jobs.enqueue(user.id, { kind: 'debrief', lang: body.lang, workoutId: body.workoutId ? String(body.workoutId).slice(0, 40) : null });
+        const job = jobs.enqueue(user.id, { kind: 'debrief', lang: body.lang, workoutId: str(body.workoutId) ? str(body.workoutId).slice(0, 40) : null });
         json(res, 202, { job });
       } catch (e) { failEnqueue(res, e); }
     },
@@ -212,14 +214,14 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
       if (body.enabled !== undefined) patch.enabled = !!body.enabled;
       const current = cfgStore.load();
       if (body.provider !== undefined) {
-        if (!cfgStore.PROVIDERS[body.provider]) return json(res, 400, { error: 'unknown provider' });
+        if (!cfgStore.isProvider(body.provider)) return json(res, 400, { error: 'unknown provider' });
         // Credentials, model and endpoint are all keyed by provider — switching never drops them.
         patch.provider = body.provider;
       }
       const target = patch.provider || current.provider;
       if (body.model !== undefined) {
         patch.models = { ...current.models };
-        if (body.model) patch.models[target] = String(body.model).slice(0, 80); else delete patch.models[target];
+        if (body.model) patch.models[target] = str(body.model).slice(0, 80); else delete patch.models[target];
       }
       if (body.baseUrl !== undefined) {
         if (!cfgStore.PROVIDERS[target].baseUrl) return json(res, 400, { error: `${target} has a fixed endpoint` });
@@ -296,19 +298,19 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
       const cfg = cfgStore.load();
       // A key may be filed for a provider that is not the active one, so the chips can be
       // prepared ahead of switching; by default it is the active provider's.
-      const provider = body.provider !== undefined ? String(body.provider) : cfg.provider;
-      if (!cfgStore.PROVIDERS[provider]) return json(res, 400, { error: 'unknown provider' });
+      const provider = body.provider !== undefined ? str(body.provider) : cfg.provider;
+      if (!cfgStore.isProvider(provider)) return json(res, 400, { error: 'unknown provider' });
       const meta = cfgStore.PROVIDERS[provider];
-      const type = String(body.type || '');
+      const type = str(body.type);
       const envVar = (type === 'cli-token' || type === 'oauth') ? meta.oauthEnv
         : type === 'apikey' ? meta.apiKeyEnv : null;
       if (!envVar) {
         return json(res, 400, { error: `${provider} does not take a credential of type "${type}"` });
       }
-      const token = String(body.token || '').trim();
+      const token = str(body.token).trim();
       if (!token) return json(res, 400, { error: 'no token supplied' });
       cfgStore.saveAuth(provider, {
-        type, account: String(body.account || '').slice(0, 120), data: cfgStore.encrypt({ token }), connectedAt: new Date().toISOString()
+        type, account: str(body.account).slice(0, 120), data: cfgStore.encrypt({ token }), connectedAt: new Date().toISOString()
       });
       json(res, 200, { ok: true });
     },
@@ -316,8 +318,8 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
     'POST /api/admin/coach/disconnect': async (req, res) => {
       if (!requireAdmin(req, res)) return;
       const body = await readBody(req);
-      const provider = body.provider !== undefined ? String(body.provider) : cfgStore.load().provider;
-      if (!cfgStore.PROVIDERS[provider]) return json(res, 400, { error: 'unknown provider' });
+      const provider = body.provider !== undefined ? str(body.provider) : cfgStore.load().provider;
+      if (!cfgStore.isProvider(provider)) return json(res, 400, { error: 'unknown provider' });
       cfgStore.saveAuth(provider, null);
       json(res, 200, { ok: true });
     },

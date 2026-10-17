@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import * as cfgStore from './config.js';
+import { atomicWrite } from '../durable.js';
 import { adapterFor } from './adapters/index.js';
 import * as payloadLib from './core/payload.js';
 import { runPipeline } from './core/pipeline.js';
@@ -55,9 +56,7 @@ export function readUser(uid) {
 }
 function writeUser(uid, rec) {
   fs.mkdirSync(COACH_DIR, { recursive: true, mode: 0o700 });
-  const file = userFile(uid), tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(rec), { mode: 0o600 });
-  fs.renameSync(tmp, file);
+  atomicWrite(userFile(uid), JSON.stringify(rec), 0o600);
 }
 function patchUser(uid, patch) {
   const rec = { ...readUser(uid), ...patch };
@@ -250,7 +249,9 @@ export function enqueue(uid, opts) {
     startedAt: Date.now()
   };
   inflight.add(uid);
-  patchUser(uid, { current: { id: job.id, kind: job.kind, state: 'queued', startedAt: job.startedAt } });
+  try {
+    patchUser(uid, { current: { id: job.id, kind: job.kind, state: 'queued', startedAt: job.startedAt } });
+  } catch (e) { inflight.delete(uid); throw e; }
   queue.push(job);
   pump();
   return { id: job.id };
@@ -261,7 +262,7 @@ function pump() {
     const job = queue.shift();
     running++;
     execute(job)
-      .catch(e => { console.error('coach job crashed', job.id, e); finish(job, { outcome: 'failed', errorClass: 'internal' }); })
+      .catch(e => { console.error('coach job crashed', job.id, e); try { finish(job, { outcome: 'failed', errorClass: 'internal' }); } catch (e2) { console.error('coach: could not record failed job', job.id, e2.message); } })
       .finally(() => { running--; inflight.delete(job.uid); pump(); });
   }
 }
@@ -276,11 +277,13 @@ export function whyUnusable(errors) {
 }
 
 function finish(job, result) {
-  cfgStore.logJob({
-    at: new Date().toISOString(), uid: job.uid, kind: job.kind, trigger: job.trigger,
-    outcome: result.outcome, errorClass: result.errorClass || null,
-    ms: Date.now() - job.startedAt, detail: result.detail || null
-  });
+  try {
+    cfgStore.logJob({
+      at: new Date().toISOString(), uid: job.uid, kind: job.kind, trigger: job.trigger,
+      outcome: result.outcome, errorClass: result.errorClass || null,
+      ms: Date.now() - job.startedAt, detail: result.detail || null
+    });
+  } catch (e) { console.error('coach: could not log job', e.message); }
   // Forgotten while it ran: the record is gone and stays gone, and nobody is notified. The
   // job still ran and still spent, which is why the instance log above keeps its line.
   if ((forgetSeq.get(job.uid) || 0) !== job.forgetSeq) return;

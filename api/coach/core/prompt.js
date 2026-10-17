@@ -27,9 +27,9 @@ export function buildPromptParts(kind, payload, repair) {
   // a model reads either just as well.
   let user = '## Payload\n\n```json\n' + JSON.stringify(payload) + '\n```\n';
   if (repair) {
-    user += '\n\n---\n\n' + PROMPTS.repair
-      .replace('{{PREVIOUS}}', String(repair.previous || '').slice(0, 4000))
-      .replace('{{ERRORS}}', repair.errors.map(e => '- ' + e).join('\n'));
+    const prev = String(repair.previous || '').slice(0, 4000);
+    const errs = repair.errors.map(e => '- ' + e).join('\n');
+    user += '\n\n---\n\n' + PROMPTS.repair.replace(/\{\{(PREVIOUS|ERRORS)\}\}/g, (_, k) => (k === 'PREVIOUS' ? prev : errs));
   }
   return { system, user, task };
 }

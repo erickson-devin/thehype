@@ -103,3 +103,12 @@ test('chat-completions spec: schema rides as json_schema, falls back to json_obj
   const cloud = chatCompletionsSpec('openai');
   assert.equal(cloud.body({ model: 'm', prompt: 'p', maxTokens: 9 }).temperature, undefined);
 });
+
+test('a repair round substitutes in one pass: replacement patterns and placeholders in the previous answer stay literal', () => {
+  const previous = "A $& B $' C {{ERRORS}} D";
+  const { user } = buildPromptParts('create', {}, { previous, errors: ['bad id'] });
+  assert.ok(user.includes(previous));
+  assert.ok(user.includes('- bad id'));
+  assert.ok(user.indexOf('- bad id') > user.indexOf(' D'));
+  assert.equal(user.split('{{ERRORS}}').length - 1, 1);
+});

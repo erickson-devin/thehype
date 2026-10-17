@@ -26,6 +26,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { atomicWrite } from '../durable.js';
 import { HTTP_PROVIDERS, baseUrlFor } from './core/providers.js';
 import { MAX_OUTPUT_TOKENS } from './core/adapters/http.js';
 
@@ -70,6 +71,7 @@ export const PROVIDERS = {
   // They spawn nothing and need no runtime in the image: the default api image runs them.
   ...HTTP_PROVIDERS
 };
+export const isProvider = p => typeof p === 'string' && Object.hasOwn(PROVIDERS, p);
 
 const DEFAULTS = {
   enabled: false,
@@ -136,11 +138,6 @@ export function decrypt(blob) {
 /* ---------- load / save ---------- */
 
 let cache = null;
-function atomicWrite(file, content, mode) {
-  const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, content, mode ? { mode } : undefined);
-  fs.renameSync(tmp, file);
-}
 export function load() {
   if (cache) return cache;
   let stored = {};
@@ -150,7 +147,7 @@ export function load() {
   // Until v1.2.11 this file held ONE credential, ONE model and ONE binding — for whichever
   // provider was selected at the time. Lift each onto that provider. One-way on purpose: a
   // downgrade will not read the maps back, which costs the owner one paste of the key.
-  const legacy = PROVIDERS[stored.provider] ? stored.provider : null;
+  const legacy = isProvider(stored.provider) ? stored.provider : null;
   if (stored.auth && stored.auth.data) cache.auth = legacy ? { [legacy]: stored.auth } : {};
   if (typeof stored.model === 'string' && stored.model) {
     cache.models = { ...(legacy ? { [legacy]: stored.model } : {}), ...(isPlainObj(stored.models) ? stored.models : {}) };
@@ -167,14 +164,14 @@ export function load() {
     cache[k] = clean;
   }
   // A retired provider must not leave the admin page with no chip selected.
-  if (!PROVIDERS[cache.provider]) cache.provider = DEFAULTS.provider;
+  if (!isProvider(cache.provider)) cache.provider = DEFAULTS.provider;
   if (cache.authMode !== 'profile') cache.authMode = 'instance';
   return cache;
 }
 export function save(patch) {
   const next = { ...load(), ...patch };
-  cache = next;
   atomicWrite(FILE, JSON.stringify(next, null, 2), 0o600);
+  cache = next;
   return next;
 }
 // Test seam: forget the in-memory copy so the next load() re-reads from disk.
@@ -183,7 +180,7 @@ export function reset() { cache = null; keyCache = null; }
 /* ---------- what one provider owns ----------
    The only way the rest of the code reads the per-provider maps, so the shape stays here. */
 export const authFor = (cfg = load(), p = cfg.provider) => (cfg.auth && cfg.auth[p]) || null;
-export const modelFor = (cfg = load(), p = cfg.provider) => (cfg.models && cfg.models[p]) || (PROVIDERS[p] && PROVIDERS[p].defaultModel) || null;
+export const modelFor = (cfg = load(), p = cfg.provider) => (cfg.models && cfg.models[p]) || (isProvider(p) && PROVIDERS[p].defaultModel) || null;
 export const optionsFor = (cfg = load(), p = cfg.provider) => (cfg.providerOptions && cfg.providerOptions[p]) || {};
 export const boundUidFor = (cfg = load(), p = cfg.provider) => (cfg.boundUid && cfg.boundUid[p]) || null;
 export function saveAuth(provider, auth) {
@@ -302,13 +299,13 @@ export function accountFor(uid) {
 
 /* ---------- derived state ---------- */
 
-export const providerMeta = cfg => PROVIDERS[(cfg || load()).provider] || PROVIDERS.fixture;
+export const providerMeta = cfg => { const p = (cfg || load()).provider; return isProvider(p) ? PROVIDERS[p] : PROVIDERS.fixture; };
 
 /** Is the feature switched on at all (before asking whether it can reach a model)? */
 export function isEnabled() {
   if (COACH_DISABLED) return false;
   const cfg = load();
-  return !!cfg.enabled && !!PROVIDERS[cfg.provider];
+  return !!cfg.enabled && isProvider(cfg.provider);
 }
 
 /** Can this instance reach a model for anybody? Per-profile mode is connected once it is chosen:

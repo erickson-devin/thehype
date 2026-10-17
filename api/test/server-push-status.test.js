@@ -158,3 +158,22 @@ test('a rest timer belongs to the device that set it: another device cancelling 
   await new Promise(r => setTimeout(r, 2500));
   assert.equal(sends(), 3, 'a legacy timer goes to every subscription of the account');
 });
+
+test('subscribe bounds what it persists: oversized or non-string endpoint and keys are a 400', async t => {
+  const h = await startServer(t);
+  const k = { p256dh: 'BAA', auth: 'AA' };
+  const sub = s => post(h, '/api/push/subscribe', { subscription: s });
+  for (const s of [
+    { endpoint: 'https://fcm.googleapis.com/fcm/send/' + 'a'.repeat(3000), keys: k },
+    { endpoint: ['https://fcm.googleapis.com/fcm/send/x'], keys: k },
+    { endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys: { ...k, p256dh: 'A'.repeat(300) } }
+  ]) {
+    const r = await sub(s);
+    assert.equal(r.status, 400);
+    assert.deepEqual(await r.json(), { error: 'invalid subscription' });
+  }
+  assert.equal(readDb(h).subs.length, 0);
+  const before = readDb(h).subs.length;
+  assert.equal((await sub({ endpoint: 'https://fcm.googleapis.com/fcm/send/ok', keys: k })).status, 200);
+  assert.equal(readDb(h).subs.length, before + 1);
+});

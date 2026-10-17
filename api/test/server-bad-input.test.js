@@ -201,3 +201,22 @@ test('POST /api/push/rest-timer: a missing or invalid `seconds` is a 400, never 
   }
   assert.equal(h.stackFrames(), 0, `stack traces in the log:\n${h.log}`);
 });
+
+test('POST /api/activity: values that cannot become numbers are ignored, not a 500', async t => {
+  const h = await startServer(t);
+  const r = await send(h, 'POST', '/api/activity', authed, '{"active":true,"exIdx":{"toString":1},"startedAt":{"toString":1}}');
+  assert.equal(r.status, 200);
+  assert.equal(h.stackFrames(), 0, `no stack traces:\n${h.log}`);
+});
+
+test('PUT /api/data: a resetAt that cannot become a number is treated as absent, not a 500', async t => {
+  const h = await startServer(t);
+  const put = body => status(h, 'PUT', '/api/data', authed, JSON.stringify(body));
+  let r = await put({ state: { unit: 'kg', resetAt: 500 }, baseRev: 0 });
+  assert.equal(r.status, 200);
+  r = await put({ state: { unit: 'kg', resetAt: { toString: 1 } }, baseRev: 1 });
+  assert.equal(r.status, 200);
+  const stored = JSON.parse(fs.readFileSync(path.join(h.dataDir, `state-${UID}.json`), 'utf8'));
+  assert.equal(stored.resetAt, 500, 'the stored stamp stands');
+  assert.equal(h.stackFrames(), 0, `no stack traces:\n${h.log}`);
+});

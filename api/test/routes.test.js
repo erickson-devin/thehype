@@ -300,3 +300,26 @@ test('an admin can store extra headers for the compatible endpoint; framing name
   assert.equal((await call('GET /api/admin/coach')).body.headers, null);
   assert.equal('headers' in cfg.load().providerOptions.compatible, false);
 });
+
+test('inherited object keys are not providers', async () => {
+  fresh();
+  const { call } = harness();
+  for (const p of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+    const a = await call('POST /api/admin/coach/config', { provider: p });
+    assert.equal(a.status, 400, p);
+    assert.deepEqual(a.body, { error: 'unknown provider' });
+    const b = await call('POST /api/admin/coach/connect', { provider: p, type: 'apikey', token: 'k' });
+    assert.equal(b.status, 400, p);
+  }
+  assert.equal(cfg.load().provider, 'fixture');
+});
+
+test('values that cannot become strings are a 400 or ignored, never a throw', async () => {
+  fresh();
+  const { call } = harness();
+  let plan;
+  await assert.doesNotReject(async () => { plan = await call('POST /api/coach/plan', { refine: { toString: 1 } }); });
+  assert.equal(typeof plan.status, 'number');
+  const c = await call('POST /api/admin/coach/connect', { type: 'apikey', token: { toString: 1 } });
+  assert.equal(c.status, 400);
+});

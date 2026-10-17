@@ -181,3 +181,8 @@ test('a null entry in workouts or routines does not cost that profile its remind
   assert.equal(firings(h.log), 1, h.log);
   assert.doesNotMatch(h.log, /reminder tick u_test_1 TypeError/, h.log);
 });
+
+test('REMINDER_TICK_MS falls back to the default when it is not a number', () => {
+  const src = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(src, /REMINDER_TICK_MS \|\| 10000\) \|\| 10000\)/);
+});

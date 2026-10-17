@@ -27,7 +27,7 @@ import {
 } from './password.js';
 import { createBackoff, createWindow } from './rate-limit.js';
 import {
-  listPasskeys, addPasskeyRecord, renamePasskeyRecord, removePasskeyRecord, passkeyRemovalRefused, MAX_PASSKEYS
+  listPasskeys, addPasskeyRecord, renamePasskeyRecord, removePasskeyRecord, passkeyRemovalRefused, MAX_PASSKEYS, transportsOf
 } from './passkeys-store.js';
 import { createDeviceLink, findDeviceLink, burnDeviceLink, dropDeviceLinks } from './device-link.js';
 import { createMediaStore, mediaLimits, mediaConfig, MediaError, HASH_RE } from './media.js';
@@ -440,7 +440,7 @@ function userNow(tz) {
 // skipped rather than delivered at a time nobody asked for.
 const REMINDER_WINDOW_MIN = 15;
 // How often the tick looks. 10 s keeps a reminder within ~9 s of its minute; the tests shorten it.
-const REMINDER_TICK_MS = Math.max(50, +(process.env.REMINDER_TICK_MS || 10000));
+const REMINDER_TICK_MS = Math.max(50, +(process.env.REMINDER_TICK_MS || 10000) || 10000);
 const hhmmToMin = v => {
   const m = /^(\d{2}):(\d{2})$/.exec(v || '');
   return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
@@ -774,6 +774,7 @@ function readBody(req) {
 // A caller-supplied field that is meant to be text. String() alone is not safe on a parsed body:
 // `{"code":{"toString":1}}` is valid JSON and String() throws on it.
 const text = v => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
+const num = v => (typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN);
 const b64uToBuf = s => Buffer.from(s, 'base64url');
 
 /* ---------- live presence (in-memory) ---------- */
@@ -1440,7 +1441,7 @@ const passwordRoutes = {
   'DELETE /api/account/email': async (req, res) => {
     const user = readSession(req);
     if (!user) return json(res, 401, { error: 'not signed in' });
-    removeEmail(req, res, user, await readBody(req));
+    return removeEmail(req, res, user, await readBody(req));
   },
 
   // An admin hands out a one-time code; the person redeems it below with a password of their
@@ -2029,7 +2030,7 @@ const routes = {
       id: credential.id, userId: user.id,
       publicKey: Buffer.from(credential.publicKey).toString('base64url'),
       counter: credential.counter || 0,
-      transports: body.credential?.response?.transports || [],
+      transports: transportsOf(body.credential?.response?.transports),
       // What Settings → Passkeys shows (#95); a passkey from before then has neither.
       created: user.created, lastUsed: user.created
     });
@@ -2246,7 +2247,7 @@ const routes = {
     // the reset would take that copy for one older than the reset, and wipe it again on its next
     // merge (frontend/src/lib/sync-merge.js).
     const storedReset = Number(cur?.resetAt) || 0;
-    if (storedReset > (Number(body.state.resetAt) || 0)) {
+    if (storedReset > (num(body.state.resetAt) || 0)) {
       body.state.resetAt = cur.resetAt;
       if (cur.resetIds && typeof cur.resetIds === 'object') body.state.resetIds = cur.resetIds;
       else delete body.state.resetIds;
@@ -2297,7 +2298,7 @@ const routes = {
     if (!user) return json(res, 401, { error: 'not signed in' });
     const body = await readBody(req);
     const sub = body.subscription;
-    if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) return json(res, 400, { error: 'invalid subscription' });
+    if (!(typeof sub?.endpoint === 'string' && sub.endpoint.length <= 2048 && typeof sub?.keys?.p256dh === 'string' && sub.keys.p256dh.length <= 256 && typeof sub?.keys?.auth === 'string' && sub.keys.auth.length <= 256)) return json(res, 400, { error: 'invalid subscription' });
     const bad = pushEndpointError(sub.endpoint);
     if (bad) return json(res, 400, { error: bad });
     // Only the two keys the push protocol needs are kept: `sub` is caller-supplied and would
@@ -2390,9 +2391,9 @@ const routes = {
       // a fresh row, which also clears any hidden mark
       presence.set(user.id, {
         name: text(body.name).slice(0, 60),
-        exIdx: +body.exIdx || 0, exTotal: +body.exTotal || 0,
-        setsDone: +body.setsDone || 0, setsTotal: +body.setsTotal || 0,
-        startedAt: +body.startedAt || Date.now(),
+        exIdx: num(body.exIdx) || 0, exTotal: num(body.exTotal) || 0,
+        setsDone: num(body.setsDone) || 0, setsTotal: num(body.setsTotal) || 0,
+        startedAt: num(body.startedAt) || Date.now(),
         updatedAt: Date.now()
       });
     } else if (body.reason === 'hidden') {
@@ -2488,6 +2489,8 @@ const routes = {
     // The training history and any Coach credential of theirs, both outside db.json.
     try { fs.unlinkSync(stateFile(u.id)); } catch { /* already gone */ }
     try { coachConfig.clearProfileAuth(u.id); } catch { /* nothing stored */ }
+    try { coachJobs.clearUser(u.id); } catch (e) { console.error('coach: clearUser failed', e.message); }
+    try { fs.rmSync(path.join(DATA, 'coach', u.id.replace(/[^a-zA-Z0-9_-]/g, '') + '.json'), { force: true }); } catch { /* nothing stored */ }
     // Their photos and videos — the one place a profile's folder under uploads/ is removed.
     try { MEDIA.removeUser(u.id); } catch (e) { console.error('media: could not remove uploads of', u.id, e.message); }
     saveDb();

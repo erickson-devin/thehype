@@ -103,3 +103,13 @@ test('jobEnv carries only the active provider\'s key under its own variable', ()
   assert.equal(env.OPENAI_API_KEY, undefined);
   assert.deepEqual(Object.keys(env).sort(), ['GEMINI_API_KEY', 'HOME', 'PATH', 'TMPDIR']);
 });
+
+test('a failed save leaves the in-memory config as it was', () => {
+  onDisk({});
+  const tmp = FILE + '.tmp';
+  fs.mkdirSync(tmp);
+  try {
+    assert.throws(() => cfg.save({ community: true }));
+    assert.equal(cfg.load().community, false);
+  } finally { fs.rmdirSync(tmp); }
+});

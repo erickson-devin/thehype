@@ -370,3 +370,10 @@ test('the admin user list and drill-down show the address to admins only', async
     assert.equal(JSON.stringify(r.body).includes('example.com'), false);
   }
 });
+
+test('DELETE /api/account/email returns the removeEmail promise, so a rejection stays inside the handler', () => {
+  const src = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  const m = /'DELETE \/api\/account\/email': async[\s\S]*?\n  \},/.exec(src);
+  assert.ok(m, 'handler found');
+  assert.match(m[0], /return removeEmail\(/);
+});

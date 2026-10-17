@@ -31,3 +31,16 @@ test('server.js and media.js write through it', () => {
   const media = fs.readFileSync(new URL('../media.js', import.meta.url), 'utf8');
   assert.match(media, /syncFile\(tmp\);[\s\S]*fs\.renameSync\(tmp, path\.join\(e\.dir/);
 });
+
+test('atomicWrite: a failed rename or fsync leaves no temporary file behind', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gym-durable-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'db.json');
+  const boom = () => { throw Object.assign(new Error('boom'), { code: 'EIO' }); };
+  for (const fn of ['renameSync', 'fsyncSync']) {
+    const m = t.mock.method(fs, fn, boom);
+    assert.throws(() => atomicWrite(file, 'x'), /boom/);
+    m.mock.restore();
+    assert.equal(fs.existsSync(file + '.tmp'), false, fn);
+  }
+});
