@@ -161,3 +161,9 @@ Custom slash commands for Claude Code are configured in `.claude/commands/`:
 - `/test` — Runs frontend, api, and vitest suites.
 - `/hype-coach` — Guidelines and workflow for modifying or testing the Hype Coach.
 
+
+# Multi-Agent Workflow Rules
+1. You act as the Orchestrator. For small, single-file edits, you may write code directly to save time. 
+2. For complex, multi-file, or architectural tasks, you must use the subagents.
+3. When using subagents, ALWAYS delegate the investigation and planning to the `analyst` subagent first.
+4. Once the `analyst` returns a plan, review it, and then delegate the actual implementation to the `coder` subagent.
