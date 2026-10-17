@@ -1,0 +1,34 @@
+# Puts every new bug or security issue on the stabilization project board, so triage happens
+# in one place instead of in the issue list.
+#
+# Projects (v2) live under the user or organisation, not under the repository, and the
+# workflow's own GITHUB_TOKEN cannot see them. That is why this needs one secret,
+# ADD_TO_PROJECT_PAT: a classic personal access token with the `repo` and `project` scopes.
+# See TICKETS.md for the backlog the board tracks.
+#
+# Two placeholders to fill in before this runs:
+#   PROJECT_URL          — the board's URL, https://github.com/users/<owner>/projects/<number>
+#   ADD_TO_PROJECT_PAT   — the repository secret holding the token
+#
+# Fires on `opened` (labels given at creation, as `gh issue create --label` does) and on
+# `labeled` (a label added later). The action itself ignores issues without a matching label.
+
+name: Add to project
+
+on:
+  issues:
+    types: [opened, labeled, reopened]
+
+permissions:
+  issues: read
+
+jobs:
+  add-to-project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/add-to-project@v2.0.0
+        with:
+          project-url: https://github.com/users/erickson-devin/projects/1
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          labeled: bug, security
+          label-operator: OR

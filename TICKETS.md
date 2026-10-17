@@ -4,24 +4,25 @@ Findings from the codebase audit of 2026-10-17 that were out of scope for a quic
 changes, architectural work, or items that need a product decision. The quick fixes from the same
 audit landed as the `fix(api)`, `fix(frontend)` and `fix(mcp)` commits of that date.
 
-Each row is meant to become one GitHub issue. Remove a row when its issue exists, or when the
-work lands. Sizes: S = under a day, M = a few days, L = a week or more.
+Each row is meant to become one GitHub issue; the Issue column holds its number once it is
+opened. Remove a row when the work lands. Sizes: S = under a day, M = a few days, L = a week
+or more.
 
 ## P1 — bugs and security
 
-| # | Title | Label | Size | Notes |
-|---|---|---|---|---|
-| 1 | Add a process-level `unhandledRejection` handler to `api/server.js` | bug, security | S | Nothing is registered today, so any future floating promise exits the process (Node 22 default). Decide: log and keep serving, or exit deliberately and document the container restart policy. |
-| 2 | Per-route body caps for anonymous routes | security | S | The 5 MiB `MAX_BODY` applies to the unthrottled, CSRF-exempt `/api/login/verify`, `/api/register/*` and `/api/pair/redeem`, so each junk request costs a 5 MiB JSON parse. Let `readBody(req, max)` take a cap (~64 KiB for auth routes). |
-| 3 | Throttle `POST /api/push/test` and subscribe churn | security | S | A signed-in user can make the server send unlimited outbound HTTPS requests to up to 20 hosts of their choice. Add a per-user `createWindow`, as the media routes do. |
-| 4 | `clientIp()` should honour `TRUST_PROXY` | security | S | `api/server.js` `clientIp()` trusts the leftmost `X-Forwarded-For` / `CF-Connecting-IP` regardless of `TRUST_PROXY`, so audit-log addresses are forgeable on deployments exposed without the bundled nginx. Reuse `limitAddress`'s trust rule. |
-| 5 | Admin *disable* should stop the user's in-flight work | bug | S | `POST /api/admin/user/disable` drops presence and device links but leaves pending rest-timer pushes and queued/running Coach jobs (which keep spending provider budget). Delete already does this; disable should too. |
-| 6 | Bound and abort the coach HTTP adapter's body read | bug | M | `api/coach/core/adapters/http.js` clears its timer and the forget-abort listener once headers arrive; `res.text()` then has no deadline or size cap, so a slow or huge provider response pins a job slot past `TIMEOUT_MS` and dodges `clearUser`. Cap at ~4 MiB (matching `spawn.js`). Shared with the phone build. |
-| 7 | Restrict the Coach key store to native platforms | security | S | `frontend/src/lib/coach-secrets.js` uses the secure-storage plugin whenever it imports; its web build stores in localStorage, not the in-memory map the design intends. Gate on `Capacitor.isNativePlatform()`. |
-| 8 | `nextDropWeight` when no lighter loadable weight exists | bug, decision-needed | S | The grid-function path in `lib/workout-model.js` skips the "never at or above prev" guard: a drop from a bare bar or the lightest dumbbell suggests the same weight, and planned drops then repeat it. Decide: suggest 0, the raw value rounded, or "no drop". |
-| 9 | Unit switch should snap increments to the target unit's grid | bug, decision-needed | S | `lib/units.js` converts `inc` like a weight: 2.5 kg → 5.5 lb, 5 lb → 2.25 kg; progression then walks off the plate grid. The code comment says "2.5 kg is 5 lb" but `units.test.js` asserts 5.5. |
-| 10 | PR rule inconsistency for per-side rows | bug | S | `finishRecords()` counts a set only when `s.done` (both sides) while `bestWeightForEntry` counts a partly completed side, so a session can advance `exWeights` without awarding a PR badge. |
-| 11 | `sync-changes` fingerprint drift | bug (unverified) | S | Server-only keys (`_wid`, `_wids`, `_unstamped`, `_prior`) and `undone`/`resetIds` are hashed into the settings bucket, so a merged copy may report a false "1 change not on your server" at sign-out. Verify with a test, then add them to `NOT_CONTENT`. |
+| # | Title | Label | Size | Notes | Issue |
+|---|---|---|---|---|---|
+| 1 | Add a process-level `unhandledRejection` handler to `api/server.js` | bug, security | S | Nothing is registered today, so any future floating promise exits the process (Node 22 default). Decide: log and keep serving, or exit deliberately and document the container restart policy. | #7 |
+| 2 | Per-route body caps for anonymous routes | security | S | The 5 MiB `MAX_BODY` applies to the unthrottled, CSRF-exempt `/api/login/verify`, `/api/register/*` and `/api/pair/redeem`, so each junk request costs a 5 MiB JSON parse. Let `readBody(req, max)` take a cap (~64 KiB for auth routes). | #8 |
+| 3 | Throttle `POST /api/push/test` and subscribe churn | security | S | A signed-in user can make the server send unlimited outbound HTTPS requests to up to 20 hosts of their choice. Add a per-user `createWindow`, as the media routes do. | #9 |
+| 4 | `clientIp()` should honour `TRUST_PROXY` | security | S | `api/server.js` `clientIp()` trusts the leftmost `X-Forwarded-For` / `CF-Connecting-IP` regardless of `TRUST_PROXY`, so audit-log addresses are forgeable on deployments exposed without the bundled nginx. Reuse `limitAddress`'s trust rule. | #10 |
+| 5 | Admin *disable* should stop the user's in-flight work | bug | S | `POST /api/admin/user/disable` drops presence and device links but leaves pending rest-timer pushes and queued/running Coach jobs (which keep spending provider budget). Delete already does this; disable should too. | #11 |
+| 6 | Bound and abort the coach HTTP adapter's body read | bug | M | `api/coach/core/adapters/http.js` clears its timer and the forget-abort listener once headers arrive; `res.text()` then has no deadline or size cap, so a slow or huge provider response pins a job slot past `TIMEOUT_MS` and dodges `clearUser`. Cap at ~4 MiB (matching `spawn.js`). Shared with the phone build. | #12 |
+| 7 | Restrict the Coach key store to native platforms | security | S | `frontend/src/lib/coach-secrets.js` uses the secure-storage plugin whenever it imports; its web build stores in localStorage, not the in-memory map the design intends. Gate on `Capacitor.isNativePlatform()`. | #13 |
+| 8 | `nextDropWeight` when no lighter loadable weight exists | bug, decision-needed | S | The grid-function path in `lib/workout-model.js` skips the "never at or above prev" guard: a drop from a bare bar or the lightest dumbbell suggests the same weight, and planned drops then repeat it. Decide: suggest 0, the raw value rounded, or "no drop". | #14 |
+| 9 | Unit switch should snap increments to the target unit's grid | bug, decision-needed | S | `lib/units.js` converts `inc` like a weight: 2.5 kg → 5.5 lb, 5 lb → 2.25 kg; progression then walks off the plate grid. The code comment says "2.5 kg is 5 lb" but `units.test.js` asserts 5.5. | #15 |
+| 10 | PR rule inconsistency for per-side rows | bug | S | `finishRecords()` counts a set only when `s.done` (both sides) while `bestWeightForEntry` counts a partly completed side, so a session can advance `exWeights` without awarding a PR badge. | #16 |
+| 11 | `sync-changes` fingerprint drift | bug (unverified) | S | Server-only keys (`_wid`, `_wids`, `_unstamped`, `_prior`) and `undone`/`resetIds` are hashed into the settings bucket, so a merged copy may report a false "1 change not on your server" at sign-out. Verify with a test, then add them to `NOT_CONTENT`. | #17 |
 
 ## P2 — the Hype vision (product decisions)
 
