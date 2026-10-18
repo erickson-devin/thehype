@@ -678,6 +678,20 @@ docker compose up -d --build
 The app shell is versioned (`?v=N`) so clients pick up changes on next load. Your `./data` is
 untouched; the exercise media come with the new image.
 
+### If the API stops on an unexpected error
+
+A bug the API does not catch — a promise nobody waited on that fails, or an error thrown outside
+any request — is not something it tries to carry on from: the data it holds in memory may no
+longer be right. It writes the error and its stack to the container log (`unhandled rejection:
+shutting down …` or `uncaught exception: shutting down …`), stops accepting connections, cuts any
+request still in progress, and exits with status 1 within five seconds. Something has to start it
+again: the bundled `docker-compose.yml` sets `restart: unless-stopped` and a Kubernetes Deployment
+always restarts its containers, so on those it is back in seconds, and the app keeps any change made
+meanwhile on the device and sends it once the server answers. If you run the image with plain
+`docker run`, add `--restart unless-stopped`; under systemd, set `Restart=on-failure`; a bare
+`node server.js` stays down. `docker compose logs api` shows the error. Please report it, with that
+log, since it is a bug.
+
 ## Passkeys fail even though `RP_ID` looks right
 
 The most common support question, and the values are usually *nearly* correct. Work through

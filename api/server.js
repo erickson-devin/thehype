@@ -94,6 +94,38 @@ const MAX_BODY = 5 * 1024 * 1024;
 // Secure cookies require HTTPS; over plain http://localhost the flag would drop the cookie
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
+/* ---------- last-resort crash handling ---------- */
+// A promise nobody awaited that rejects, or a throw from a timer or event callback, is a bug the
+// route dispatcher's try/catch never saw — and the state it left behind (db in memory, a half-done
+// mutation) is no longer known to be good. So this does not try to keep serving: it says exactly
+// what went wrong, stops taking connections, and exits 1, and the restart policy (compose's
+// `restart: unless-stopped`, a Deployment's restartPolicy) brings back a clean process. In-flight
+// requests are cut rather than finished, so none of them can save the suspect state; the client
+// keeps its changes and retries. Registered before anything else runs, so a failure at boot takes
+// the same path. `httpServer` is assigned just before listen; until then there is nothing to close.
+let httpServer = null;
+let crashing = false;
+let crashNoted = false;
+const CRASH_GRACE_MS = 5000;
+function crash(kind, err) {
+  if (crashing) {
+    // A second failure while shutting down is logged once and otherwise ignored: restarting the
+    // sequence could close the server twice or race the exit.
+    if (!crashNoted) { crashNoted = true; console.error(`${kind} during shutdown`, err); }
+    return;
+  }
+  crashing = true;
+  process.exitCode = 1;
+  console.error(`${kind}: shutting down so the process manager restarts a clean process`, err);
+  // A connection that never finishes (a stalled upload) must not hold the exit open.
+  setTimeout(() => process.exit(1), CRASH_GRACE_MS).unref();
+  if (!httpServer?.listening) { process.exit(1); return; }
+  httpServer.close(() => process.exit(1));
+  httpServer.closeAllConnections();
+}
+process.on('unhandledRejection', err => crash('unhandled rejection', err));
+process.on('uncaughtException', err => crash('uncaught exception', err));
+
 fs.mkdirSync(DATA, { recursive: true });
 /* The secrets are locked down file by file rather than by sealing the whole directory.
  *
@@ -2705,6 +2737,16 @@ const server = http.createServer(async (req, res) => {
 // every other route's body still has to arrive within five minutes (bodyDeadline above).
 server.requestTimeout = 30 * 60000;
 server.headersTimeout = 60000;
+httpServer = server;   // the crash handler at the top closes this one
+// Test seam for the crash handler (test/server-unhandled.test.js). Only a test sets
+// TEST_CRASH_SEAM; unset, no listener exists and SIGUSR2 keeps node's default. Never set it in a
+// deployment.
+const CRASH_SEAM = /^(rejection|exception|double)$/.exec(process.env.TEST_CRASH_SEAM || '')?.[1];
+if (CRASH_SEAM) process.on('SIGUSR2', () => {
+  if (CRASH_SEAM === 'exception') throw new Error('test seam: uncaught exception');
+  Promise.reject(new Error('test seam: unhandled rejection'));
+  if (CRASH_SEAM === 'double') Promise.reject(new Error('test seam: second rejection'));
+});
 // The port is read back off the listener rather than echoed from PORT, so the line states the
 // port that was actually bound: with PORT=0 the OS picks one, and a caller that did not choose it
 // (the tests spawn the server that way, and so does anyone running two instances on one box) has
