@@ -29,7 +29,10 @@ test('validateManifest rejects policy violations', () => {
   bad((m) => { delete m.tracks[0].downloadUrl }, /downloadUrl/)
   bad((m) => { m.tracks[0].licenseUrl = 'https://creativecommons.org/licenses/by/3.0/' }, /licenseUrl/)
   bad((m) => { m.tracks[0].downloadUrl = 'https://files.freemusicarchive.org/x.mp3' }, /downloadUrl/)
-  bad((m) => { m.tracks[0].sha256 = 'a'.repeat(64) }, /sha256/)
+  // sha256 and bytes are pinned together: one without the other is a half-written pin, whatever
+  // state the committed manifest is in
+  bad((m) => { m.tracks[0].sha256 = 'a'.repeat(64); m.tracks[0].bytes = null }, /sha256|bytes/)
+  bad((m) => { m.tracks[0].sha256 = null; m.tracks[0].bytes = 1 }, /sha256|bytes/)
   bad((m) => { m.policy.licenses.push('CC-BY-SA-4.0') }, /licenses/)
   bad((m) => { m.tracks[0].AI = false }, /AI/)
 })
