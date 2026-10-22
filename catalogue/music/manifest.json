@@ -22,8 +22,8 @@
       "durationSec": 223,
       "bpm": 138,
       "ai": false,
-      "sha256": null,
-      "bytes": null,
+      "sha256": "1889779e953b392ae07c57219066e2a14407e796eaa5a167da5cea6fc622d357",
+      "bytes": 9014582,
       "verifiedOn": "2026-10-21",
       "verifiedBy": "licence read on the source page"
     },
@@ -130,8 +130,8 @@
       "durationSec": 238,
       "bpm": 126,
       "ai": false,
-      "sha256": null,
-      "bytes": null,
+      "sha256": "f34e279c759a7bb0fdeb6cea0b5a4e6264d7677408fbb48ecf13f5c538d13478",
+      "bytes": 9514954,
       "verifiedOn": "2026-10-21",
       "verifiedBy": "licence read on the source page"
     },
