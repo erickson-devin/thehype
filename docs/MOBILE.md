@@ -177,6 +177,12 @@ video autoplays muted in the Android WebView; a long video seeks from its `_capa
 URL on both platforms; an iPhone photo arrives as JPEG and an iPhone video (HEVC or H.264 MOV)
 plays; the zip export opens the share sheet.
 
+### Screen stays on during a workout
+
+On Android the app keeps the screen on during a workout with `FLAG_KEEP_SCREEN_ON`, set through the
+RestAlert plugin (`keepAwake`), because the WebView has no Screen Wake Lock API. iOS relies on the
+web Screen Wake Lock API where the system provides it.
+
 ### Health Connect (Android)
 
 Settings → **Health Connect** writes finished workouts and weigh-ins to Health Connect, Android's

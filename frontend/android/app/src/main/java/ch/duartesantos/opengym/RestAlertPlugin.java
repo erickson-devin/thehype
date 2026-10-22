@@ -2,6 +2,7 @@ package ch.duartesantos.opengym;
 
 import android.content.Context;
 import android.content.Intent;
+import android.view.WindowManager;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -184,6 +185,24 @@ public class RestAlertPlugin extends Plugin {
             i.putExtra("ink", ink);
             try { ctx.startService(i); } catch (Exception ignored) { /* no rest running */ }
         }
+        call.resolve();
+    }
+
+    /**
+     * Keeps the screen on while a workout runs. The WebView has no Screen Wake Lock API, so the
+     * window flag does it; `on: false` clears it again.
+     */
+    @PluginMethod
+    public void keepAwake(PluginCall call) {
+        final boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        if (getActivity() == null) {
+            call.reject("no activity");
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            if (on) getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        });
         call.resolve();
     }
 

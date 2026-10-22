@@ -28,6 +28,7 @@ import { unlock } from '../lib/sound.js'
 import { finishWorkout } from '../sheets.jsx'
 import { getLang } from '../lib/i18n.js'
 import { HYPE_LINES } from '../lib/hype-lines.js'
+import { positionAt, startClock } from '../lib/interval-schedule.js'
 
 let host, root
 beforeEach(() => {
@@ -200,5 +201,83 @@ describe('hype lines', () => {
     remount()
     await tick(20_500)
     expect(HYPE_LINES.finalTen).toContain(said().at(-1))
+  })
+})
+
+describe('time while hidden', () => {
+  const four = () => {
+    mocks.S.active.entries = ['0001', '0001', '0001', '0001'].map(id => ({ id, target: { sets: 1, reps: 10 }, sets: [{ w: 0, r: 10, done: false }] }))
+    remount()
+  }
+  const jump = ms => act(() => { vi.setSystemTime(Date.now() + ms) })
+  const sets = () => mocks.S.active.entries.flatMap(e => e.sets)
+
+  it('catches up past the end and ticks every set', async () => {
+    jump(102_000)                       // a frozen page: no timers run
+    await tick(200)
+    expect(mocks.S.active.entries[0].sets.every(s => s.done)).toBe(true)
+    expect(finishWorkout).toHaveBeenCalled()
+  })
+
+  it('catches up into the right block and ticks only what ended', async () => {
+    four()
+    const t0 = Date.now()
+    jump(31_000)
+    await tick(200)
+    expect(sets().map(s => s.done)).toEqual([true, true, false, false])
+    const blocks = ['w', 'r', 'w', 'r', 'w', 'r', 'w'].map((k, i) => ({ kind: k === 'w' ? 'work' : 'rest', sec: k === 'w' ? 10 : 5, id: 'x', i }))
+    expect(positionAt(blocks, startClock(t0), t0 + 31_200).idx).toBe(4)   // the block the player shows
+    expect(host.textContent).toContain('Set 3 of 4')
+  })
+
+  it('a short gap inside a block ticks nothing', async () => {
+    jump(3_000)
+    await tick(200)
+    expect(sets().some(s => s.done)).toBe(false)
+    expect(host.querySelector('div[style*="font-weight: 800"]').textContent).toBe('7')
+  })
+
+  it('a hidden page that keeps ticking logs sets live', async () => {
+    await tick(16_000)
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
+  })
+
+  it('visibilitychange catches up without waiting for the interval', () => {
+    jump(12_000)
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    act(() => { document.dispatchEvent(new Event('visibilitychange')) })
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
+    delete document.visibilityState
+  })
+})
+
+describe('media session', () => {
+  let ms
+  beforeEach(() => {
+    ms = { setActionHandler: vi.fn(), setPositionState: vi.fn(), metadata: null, playbackState: 'none' }
+    Object.defineProperty(navigator, 'mediaSession', { value: ms, configurable: true })
+    globalThis.MediaMetadata = class { constructor(m) { Object.assign(this, m) } }
+    remount()
+  })
+  afterEach(() => { delete navigator.mediaSession; delete globalThis.MediaMetadata })
+
+  it('publishes the exercise and wires next to Skip', async () => {
+    expect(ms.metadata.title).toBeTruthy()
+    expect(ms.metadata.title).toBe(host.querySelector('div[style*="font-size: 28px"]').textContent)
+    const next = ms.setActionHandler.mock.calls.find(c => c[0] === 'nexttrack')[1]
+    act(() => { next() })
+    await tick(100)
+    expect(host.textContent).toContain('Get ready')
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(false)
+  })
+
+  it('nulls every handler on unmount', () => {
+    act(() => root.unmount())
+    ms.setActionHandler.mockClear()
+    root = createRoot(host)   // keep afterEach's unmount valid
+    act(() => root.render(<div />))
+    const names = ['play', 'pause', 'nexttrack']
+    const last = n => ms.setActionHandler.mock.calls.filter(c => c[0] === n).at(-1)
+    names.forEach(n => expect(last(n) ? last(n)[1] : null).toBeNull())
   })
 })

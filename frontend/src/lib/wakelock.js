@@ -6,8 +6,16 @@
 // exactly once and then silently dies, which is why `wanted` is kept as our own intent
 // and the lock is re-acquired on every visibilitychange for as long as it holds.
 import { useEffect } from 'react'
+import { MOBILE } from './mobile.js'
 
-export const wakeLockSupported = () => 'wakeLock' in navigator
+// The Android WebView has no Screen Wake Lock API; the app holds FLAG_KEEP_SCREEN_ON through the
+// RestAlert plugin instead (lib/rest-alert.js keepAwake).
+const nativeAndroid = () => MOBILE && typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent || '')
+const keepAwakeNative = on => {
+  try { import('./rest-alert.js').then(m => m.keepAwake(on)).catch(() => {}) } catch { /* best effort */ }
+}
+
+export const wakeLockSupported = () => nativeAndroid() || 'wakeLock' in navigator
 
 let sentinel = null       // the live WakeLockSentinel, null when we hold nothing
 let wanted = false        // do we currently want the screen to stay on?
@@ -35,12 +43,15 @@ const onVisible = () => { if (document.visibilityState === 'visible') acquire() 
 export function requestWakeLock() {
   if (wanted) return
   wanted = true
+  if (nativeAndroid()) { keepAwakeNative(true); return }
   document.addEventListener('visibilitychange', onVisible)
   acquire()
 }
 
 export function releaseWakeLock() {
+  const was = wanted
   wanted = false
+  if (nativeAndroid()) { if (was) keepAwakeNative(false); return }
   document.removeEventListener('visibilitychange', onVisible)
   const s = sentinel
   sentinel = null

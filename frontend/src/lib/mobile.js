@@ -214,12 +214,16 @@ export function initReminderSync(getState) {
 // Runs cb whenever the native shell returns to the foreground — the store pulls the account's
 // state then, so a phone that sat in a pocket all afternoon shows what the desktop did. No-op
 // off mobile; the store's own visibility/focus listeners cover the browser.
+// Returns a remover (a no-op off mobile) that detaches the listener once it is registered.
 export function onAppActive(cb) {
-  if (!MOBILE) return
+  if (!MOBILE) return () => {}
+  let removed = false
+  let handle = null
   // Returned, not dropped, for the same reason as in initReminderSync.
   import('@capacitor/app').then(({ App }) =>
-    App.addListener('appStateChange', ({ isActive }) => { if (isActive) cb() })
-  ).catch(() => {})
+    App.addListener('appStateChange', ({ isActive }) => { if (isActive && !removed) cb() })
+  ).then(h => { handle = h; if (removed) { try { handle?.remove() } catch { /* already gone */ } } }).catch(() => {})
+  return () => { removed = true; try { handle?.remove() } catch { /* already gone */ } }
 }
 
 // WKWebView can't do blob-URL downloads, so the backup goes out through the OS share sheet

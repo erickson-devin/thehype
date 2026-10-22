@@ -114,3 +114,21 @@ describe('releaseWakeLock', () => {
     expect(requests).toBe(1)         // and we did not start wanting it again
   })
 })
+
+describe('the Android app', () => {
+  it('holds the screen through the native plugin instead of navigator.wakeLock', async () => {
+    const keepAwake = vi.fn(() => Promise.resolve(true))
+    vi.resetModules()
+    vi.doMock('./mobile.js', () => ({ MOBILE: true }))
+    vi.doMock('./rest-alert.js', () => ({ keepAwake }))
+    setNavigator({ userAgent: 'Mozilla/5.0 (Linux; Android 14)' })
+    const m = await import('./wakelock.js')
+    expect(m.wakeLockSupported()).toBe(true)
+    m.requestWakeLock(); await settle()
+    expect(keepAwake).toHaveBeenCalledWith(true)
+    m.releaseWakeLock(); await settle()
+    expect(keepAwake).toHaveBeenLastCalledWith(false)
+    expect(requests).toBe(0)
+    vi.doUnmock('./mobile.js'); vi.doUnmock('./rest-alert.js')
+  })
+})

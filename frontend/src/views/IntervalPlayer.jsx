@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
-import { exOr, isCustomEx } from '../lib/exercises.js'
+import { exOr, figureOf, imgSrc, isCustomEx } from '../lib/exercises.js'
 import { mediaOf } from '../lib/media-refs.js'
 import Media, { Thumb } from '../components/Media.jsx'
 import { exerciseNameText } from '../lib/format.js'
@@ -11,6 +11,9 @@ import { buildIntervals, intervalSettings, nextWork, remainingSec } from '../lib
 import { speak, stopSpeaking, countdownBeep } from '../lib/interval-audio.js'
 import { finishWorkout } from '../sheets.jsx'
 import { drawHype, hypeEventsFor, hypeMarks, initHype } from '../lib/hype-lines.js'
+import { awayDecision, elapsedOf, endedWork, pauseClock, positionAt, resumeClock, skipBlock, startClock } from '../lib/interval-schedule.js'
+import { bindMediaActions, mediaMetadataFor, positionStateFor, publishMedia } from '../lib/media-session.js'
+import { onAppActive } from '../lib/mobile.js'
 import Icon from '../components/Icon.jsx'
 
 const mmss = sec => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
@@ -18,6 +21,12 @@ const nameOf = id => exerciseNameText(exOr(id))
 // Whether an exercise has a picture to show: a catalogue animation, or a custom exercise's own file.
 // Neither (a custom exercise without one, an unknown id) leaves the name to carry the block.
 const hasMedia = ex => (isCustomEx(ex) ? !!mediaOf(ex) : !!ex?.gif)
+// Absolute URL of an exercise's still, for the lock-screen artwork (null when it has none).
+const artworkOf = id => {
+  const ex = exOr(id)
+  const src = ex?.img ? imgSrc(ex, figureOf(useStore.getState().S)) : null
+  try { return src ? new URL(src, location.href).href : null } catch { return null }
+}
 const reducedMotion = () => {
   try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
 }
@@ -45,10 +54,16 @@ export default function IntervalPlayer() {
   const [muted, setMuted] = useState(false)
   const [finished, setFinished] = useState(false)
 
-  // The clock is a deadline, not a count of ticks: a timer throttled in the background (a locked
-  // screen) catches up on the next tick instead of falling behind.
-  const remainMs = useRef((blocks[0]?.sec || 0) * 1000)
-  const endAt = useRef(0)
+  // The clock is a wall-clock origin plus paused spans (lib/interval-schedule.js), not a count of
+  // ticks: a page that was throttled or frozen (a locked screen) lands in the right block, and
+  // logs the work blocks that ended meanwhile, on the next tick.
+  const clock = useRef(null); if (!clock.current) clock.current = startClock(Date.now())
+  const lastTickAt = useRef(Date.now())
+  const lastElapsed = useRef(0)
+  const pausedRef = useRef(false)
+  pausedRef.current = paused
+  const finishedRef = useRef(false)
+  finishedRef.current = finished
   const lastBeep = useRef(null)
   const mutedRef = useRef(muted)
   mutedRef.current = muted
@@ -72,43 +87,89 @@ export default function IntervalPlayer() {
     if (e.sets.every(x => x.done)) e.topW = bestWeightForEntry(e) || null
   }), [update])
 
-  const togglePause = () => {
-    unlock(sound)   // a tap is the gesture a browser needs before it lets audio start
-    if (!paused) remainMs.current = Math.max(0, endAt.current - Date.now())
-    setPaused(p => !p)
-  }
-
-  const advance = useCallback((log = true) => {
-    const cur = blocks[idx]
-    if (log && cur?.kind === 'work') logSet(cur)
-    if (idx + 1 >= blocks.length) { setFinished(true); return }
-    remainMs.current = blocks[idx + 1].sec * 1000
-    lastBeep.current = null
-    setLeft(blocks[idx + 1].sec)
-    setIdx(idx + 1)
-  }, [blocks, idx, logSet])
-
-  // The countdown. Re-armed on every block and on resume (from remainMs, which togglePause banks).
-  useEffect(() => {
-    if (paused || finished || !block) return undefined
-    endAt.current = Date.now() + remainMs.current
-    const tick = () => {
-      const ms = endAt.current - Date.now()
-      const sec = Math.max(0, Math.ceil(ms / 1000))
-      setLeft(sec)
-      // 3-2-1: one beep as each of the last three seconds begins (and none twice, even when the
-      // interval fires more than once inside a second).
-      if (sec <= 3 && sec >= 1 && lastBeep.current !== sec) { lastBeep.current = sec; countdownBeep(sec, !mutedRef.current && !!sound) }
-      for (const ev of hypeEventsFor(blocks, idx, sec, fired.current, marks)) {
+  const tick = useCallback(() => {
+    const now = Date.now()
+    // Under AWAY_POLICY 'tick' this is informational. An 'ask' (not reachable today) is treated as
+    // a tick until a "you were away" sheet exists.
+    awayDecision(blocks, clock.current, lastTickAt.current, now)
+    const pos = positionAt(blocks, clock.current, now)
+    endedWork(blocks, clock.current, lastElapsed.current, pos.elapsedMs).forEach(i => logSet(blocks[i]))
+    lastElapsed.current = pos.elapsedMs
+    lastTickAt.current = now
+    const sec = Math.ceil(pos.leftMs / 1000)
+    const at = Math.min(pos.idx, blocks.length - 1)
+    setIdx(at)
+    setLeft(sec)
+    // 3-2-1: one beep as each of the last three seconds begins (and none twice, even when the
+    // interval fires more than once inside a second).
+    const key = pos.idx + ':' + sec
+    if (sec <= 3 && sec >= 1 && lastBeep.current !== key) { lastBeep.current = key; countdownBeep(sec, !mutedRef.current && !!sound) }
+    if (!pos.done) {
+      for (const ev of hypeEventsFor(blocks, pos.idx, sec, fired.current, marks)) {
         if (ev.event !== 'finalTen') continue   // block-start events are the cue effect's
         fired.current.add(ev.key)
         if (!mutedRef.current) speak(hypeText(ev), getLang())
       }
-      if (ms <= 0) { clearInterval(id); advance() }
     }
+    if (pos.done) setFinished(true)
+  }, [blocks, logSet, marks, sound]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const skip = () => {
+    clock.current = skipBlock(blocks, clock.current, Date.now())
+    lastElapsed.current = elapsedOf(clock.current, Date.now())   // a skipped block's set is never logged
+    tick()
+  }
+
+  const togglePause = () => {
+    unlock(sound)   // a tap is the gesture a browser needs before it lets audio start
+    const now = Date.now()
+    clock.current = paused ? resumeClock(clock.current, now) : pauseClock(clock.current, now)
+    if (paused) lastTickAt.current = now
+    setPaused(p => !p)
+  }
+
+  // The countdown. Runs from the clock, so there is nothing to re-arm per block.
+  useEffect(() => {
+    if (paused || finished) return undefined
+    tick()
     const id = setInterval(tick, 200)
     return () => clearInterval(id)
-  }, [idx, paused, finished, block, advance, sound])
+  }, [paused, finished, tick])
+
+  // Wake-ups: the interval is frozen with the page, so these catch the clock up the moment the
+  // page is back. onAppActive returns a remover, used in the cleanup.
+  useEffect(() => {
+    const wake = () => { if (!pausedRef.current && !finishedRef.current) tick() }
+    const onVis = () => { if (document.visibilityState === 'visible') wake() }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pageshow', wake)
+    const off = onAppActive(wake)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pageshow', wake)
+      off()
+    }
+  }, [tick])
+
+  // Lock screen / notification controls. Position is throttled: republished when the block or the
+  // paused state changes, otherwise every ~5 s.
+  const sessionName = A?.name || t('Workout')
+  const lastPub = useRef({ idx: -1, paused: null, at: 0 })
+  useEffect(() => {
+    if (finished || !blocks[idx]) return
+    const p = lastPub.current
+    const now = Date.now()
+    if (p.idx === idx && p.paused === paused && now - p.at < 5000) return
+    lastPub.current = { idx, paused, at: now }
+    publishMedia(mediaMetadataFor(blocks, idx, { nameOf, artworkOf, t, sessionName }), { playing: !paused, position: positionStateFor(blocks[idx], left * 1000) })
+  }, [idx, paused, left]) // eslint-disable-line react-hooks/exhaustive-deps
+  const actions = useRef({})
+  actions.current = { togglePause, skip }
+  useEffect(() => bindMediaActions({
+    onPlay: () => { if (pausedRef.current) actions.current.togglePause() },
+    onPause: () => { if (!pausedRef.current) actions.current.togglePause() },
+    onNext: () => actions.current.skip(),
+  }), [])
 
   // Best effort at mount (the tap that opened the player may still count as a gesture); Pause
   // unlocks again, inside a tap that certainly does.
@@ -193,12 +254,12 @@ export default function IntervalPlayer() {
         <Icon name={paused ? 'play' : 'pause'} /> {paused ? t('Resume') : t('Pause')}
       </button>
       <div style={{ display: 'flex', gap: 12 }}>
-        <button className="btn ghost dim" style={{ flex: 1 }} onClick={() => advance(false)}>{t('Skip')}</button>
+        <button className="btn ghost dim" style={{ flex: 1 }} onClick={skip}>{t('Skip')}</button>
         <button className="btn ghost dim" style={{ flex: 1 }} onClick={() => {
           // Stop the clock first: the finish sheet can be cancelled, and a running block must not
           // tick a set or announce a rest behind it.
           stopSpeaking()
-          if (!paused) { remainMs.current = Math.max(0, endAt.current - Date.now()); setPaused(true) }
+          if (!paused) { clock.current = pauseClock(clock.current, Date.now()); setPaused(true) }
           finishWorkout()
         }}>{t('End workout')}</button>
       </div>

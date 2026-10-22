@@ -163,6 +163,15 @@ export function toneNative(kind) {
     .catch(() => false)
 }
 
+// Keeps the screen on (FLAG_KEEP_SCREEN_ON; the Android WebView has no Screen Wake Lock API).
+// Resolves true once the native side did it, false anywhere it cannot.
+export function keepAwake(on) {
+  if (!MOBILE) return Promise.resolve(false)
+  return restPlugin()
+    .then(plugin => (plugin ? plugin.RestAlert.keepAwake({ on: !!on }).then(() => true) : false))
+    .catch(() => false)
+}
+
 // The running countdown repaints with this swatch. No-op when no rest is on screen.
 export function setRestAccent(key) {
   if (!MOBILE) return
