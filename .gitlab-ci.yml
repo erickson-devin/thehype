@@ -482,6 +482,12 @@ build:web-check:
       [ "$(docker exec web-check id -u)" = 101 ]
       docker exec web-check grep -q '^Uid:[[:space:]]*101[[:space:]]' /proc/1/status
       docker exec web-check wget -qO- http://127.0.0.1/ | grep -q '<div id="root">'
+      # An image without the music answers 404 here. busybox wget follows redirects, so this
+      # fails if that 404 ever becomes the SPA redirect to the app root. (`set -e` ignores a
+      # `!`-negated command, so the check is an explicit `if`.)
+      if docker exec web-check wget -qO- http://127.0.0.1/workout-music/index.json >/dev/null 2>&1; then
+        echo "workout-music/index.json was served (or redirected) by an image built without the music"; exit 1
+      fi
       docker exec web-check sh -c 'grep -l "coach" /usr/share/nginx/html/assets/index-*.js >/dev/null'
       docker rm -f web-check
   rules:
@@ -494,6 +500,8 @@ build:web-check:
           - "frontend/**/*"
           - "web/**/*"
           - "api/coach/core/**/*"
+          - "scripts/music/**/*"
+          - "catalogue/music/**/*"
           - ".gitlab-ci.yml"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual

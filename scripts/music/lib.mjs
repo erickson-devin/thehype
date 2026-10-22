@@ -147,3 +147,35 @@ export function parseArgs(argv) {
   }
   return o
 }
+
+export const STAGE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*\.(mp3|m4a)$/
+
+/** What stage-music copies. indexText: contents of files/index.json or null; listing: file names in files/.
+ *  Returns { skip: string|null, copies: [{ from, to }], index: object|null }. Tracks are renamed
+ *  <id>-<sha256[0:12]>.<ext> so nginx can cache them immutably; index.json is rewritten to match. */
+export function stagePlan(indexText, listing) {
+  const skip = (why) => ({ skip: why, copies: [], index: null })
+  if (indexText == null) return skip('no index.json — no workout music staged (run scripts/music/fetch-music.mjs first)')
+  let idx
+  try { idx = JSON.parse(indexText) } catch { return skip('index.json is not valid JSON') }
+  if (!isPlainObject(idx) || idx.version !== 1 || !Array.isArray(idx.tracks)) return skip('index.json: unsupported shape')
+  if (!listing.includes('attribution.txt')) return skip('attribution.txt missing — CC BY tracks cannot ship without it')
+  const usable = (f) => typeof f === 'string' && STAGE_NAME.test(f) && listing.includes(f)
+  const kept = []
+  const copies = []
+  for (const t of idx.tracks) {
+    if (!isPlainObject(t) || typeof t.id !== 'string' || !usable(t.file)) continue
+    if (typeof t.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(t.sha256)) continue
+    const stem = t.id + '-' + t.sha256.slice(0, 12)
+    const next = { ...t, file: stem + '.mp3' }
+    copies.push({ from: t.file, to: next.file })
+    if (usable(t.m4a)) {
+      next.m4a = stem + '.m4a'
+      copies.push({ from: t.m4a, to: next.m4a })
+    } else delete next.m4a
+    kept.push(next)
+  }
+  if (!kept.length) return skip('no track files present')
+  copies.push({ from: 'attribution.txt', to: 'attribution.txt' })
+  return { skip: null, copies, index: { ...idx, tracks: kept } }
+}

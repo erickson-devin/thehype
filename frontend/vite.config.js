@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join, resolve } from 'node:path'
+import { extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -30,6 +30,26 @@ const catalogueMedia = {
       const file = join(root, dir, name)
       if (!/^\d{4,5}\.(webp|mp4)$/.test(name) || !name.endsWith(ext) || !existsSync(file)) { res.statusCode = 404; return res.end() }
       res.setHeader('Content-Type', ext === '.mp4' ? 'video/mp4' : 'image/webp')
+      res.end(readFileSync(file))
+    })
+  }
+}
+
+// The built-in workout music in dev: /workout-music/* from catalogue/music/files, under the names
+// fetch-music.mjs wrote (unhashed; production serves the hashed copies stage-music.mjs makes).
+// Whole files, no byte ranges: Chrome plays them, Safari may not. Production nginx serves ranges.
+const workoutMusic = {
+  name: 'opengym-workout-music',
+  configureServer(server) {
+    const types = { '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.json': 'application/json', '.txt': 'text/plain' }
+    const root = resolve(fileURLToPath(new URL('.', import.meta.url)), '../catalogue/music/files')
+    const prefix = '/workout-music/'
+    server.middlewares.use((req, res, next) => {
+      if (!req.url.startsWith(prefix)) return next()
+      const name = decodeURIComponent(req.url.slice(prefix.length).split('?')[0])
+      const file = join(root, name)
+      if (!/^(?:[a-z0-9-]+\.(?:mp3|m4a)|index\.json|attribution\.txt)$/.test(name) || !existsSync(file)) { res.statusCode = 404; return res.end() }
+      res.setHeader('Content-Type', types[extname(name)] + '; charset=utf-8')
       res.end(readFileSync(file))
     })
   }
@@ -102,7 +122,7 @@ const appVersion = process.env.APP_BUILD ? `${pkgVersion}+${process.env.APP_BUIL
 
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
-  plugins: [react(), umami, flavor, swStamp, catalogueMedia],
+  plugins: [react(), umami, flavor, swStamp, catalogueMedia, workoutMusic],
   base: './',
   server: {
     // The Coach's core (payload, validator, prompts, HTTP adapters) lives in ../api/coach/core

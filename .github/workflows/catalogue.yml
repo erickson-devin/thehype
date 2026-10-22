@@ -30,4 +30,5 @@ jobs:
       - name: Workout music manifest (licence + no-AI policy) and fetch script, no network
         run: |
           node --test scripts/music/fetch-music.test.mjs
+          node --test scripts/music/stage-music.test.mjs
           node scripts/music/fetch-music.mjs --check

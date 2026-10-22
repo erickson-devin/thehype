@@ -72,15 +72,49 @@ function blocksOf(conf) {
 }
 
 // An image keeps for 30 days, said by one Cache-Control: the one that can carry `immutable`.
-// `expires` adds a Cache-Control of its own (and an Expires header) beside it.
+// `expires` adds a Cache-Control of its own (and an Expires header) beside it. A workout music
+// track keeps for a year: its name carries its content hash, so the URL never serves another file.
 describe('the cache lifetime nginx gives an image', () => {
   it('is said once, by the explicit header, with no expires beside it', () => {
     expect(NGINX.replace(/#.*$/gm, '')).not.toMatch(/\bexpires\b/)
+    const immutable = blocksOf(NGINX).filter(b => /\bimmutable\b/.test(b))
     // the exercise media's own block and every other image's
-    const media = blocksOf(NGINX).filter(b => /\bimmutable\b/.test(b))
+    const media = immutable.filter(b => /max-age=2592000/.test(b))
     expect(media.length).toBe(2)
     for (const b of media) expect(b).toMatch(/\badd_header\s+Cache-Control\s+"public, max-age=2592000, immutable"\s*;/)
+    // the workout music's hashed track files
+    const music = immutable.filter(b => !media.includes(b))
+    expect(music.length).toBe(1)
+    expect(music[0]).toMatch(/\badd_header\s+Cache-Control\s+"public, max-age=31536000, immutable"\s*;/)
   })
+})
+
+// The built-in workout playlist: an image built without it has no such folder, and the block
+// keeps that a plain 404 rather than the SPA redirect. Tracks are content-hashed and cache for a
+// year; index.json and attribution.txt revalidate.
+describe('the workout music', () => {
+  for (const base of ['', '/gym']) {
+    it(`is served as audio with the right caching${base ? ' under ' + base : ''}`, () => {
+      const conf = render(base)
+      const at = conf.indexOf(`location ^~ ${base}/workout-music/ {`)
+      expect(at).toBeGreaterThan(-1)
+      // blocksOf reads braces, so the nested location's "{12}" quantifier shows up as a block of its
+      // own; the three real ones are picked by what they say, not by position.
+      const blocks = blocksOf(conf.slice(at))
+      const types = blocks.find(b => /\baudio\/mpeg\b/.test(b))
+      const nested = blocks.find(b => /max-age=31536000/.test(b))
+      const outer = blocks.find(b => /"no-cache"/.test(b))
+      expect(types && nested && outer).toBeTruthy()
+      expect(types).toMatch(/\baudio\/mpeg\s+mp3\s*;/)
+      expect(types).toMatch(/\baudio\/mp4\s+m4a\s*;/)
+      expect(outer).toMatch(/\badd_header\s+Cache-Control\s+"no-cache"\s*;/)
+      expect(nested).toMatch(/max-age=31536000, immutable/)
+      for (const b of [outer, nested]) {
+        expect(b).toMatch(/\badd_header\s+X-Content-Type-Options\s+"nosniff"\s+always\s*;/)
+        expect(b).toMatch(/\brewrite\s+\^\\Q/)
+      }
+    })
+  }
 })
 
 // The exercise media are licensed for openGym only: Cross-Origin-Resource-Policy keeps another
@@ -174,14 +208,15 @@ describe('what nginx forwards to the API', () => {
 // to @root, and @root sent it back to /g+ym/, forever; the assets and images 404'd.
 describe('the file nginx looks for under BASE_PATH', () => {
   const REWRITE = /\brewrite\s+(\S+)\s+(\S+)\s+break\s*;/g
-  // All five rewrites (the app's prefix block, the two cache blocks, and the exercise media's
-  // block and its nested cache block) give the same answer.
+  // All seven rewrites (the app's prefix block, the two cache blocks, the exercise media's block
+  // and its nested cache block, and the workout music's block and its nested cache block) give
+  // the same answer.
   function onDisk(base, uri) {
     const got = [...render(base).matchAll(REWRITE)].map(([, pattern, to]) => {
       const m = new RegExp(quoted(pattern)).exec(uri)
       return m ? to.replace(/\$(\d)/g, (_, i) => m[i]) : uri
     })
-    expect(got.length).toBe(5)
+    expect(got.length).toBe(7)
     expect(new Set(got).size).toBe(1)
     return got[0]
   }
@@ -193,6 +228,8 @@ describe('the file nginx looks for under BASE_PATH', () => {
     expect(onDisk('/gym', '/gym/icon-180.png')).toBe('/icon-180.png')
     expect(onDisk('/a/b', '/a/b/index.html')).toBe('/index.html')
     expect(onDisk('/gym', '/gym/exercise-media/clip/0001.mp4')).toBe('/exercise-media/clip/0001.mp4')
+    expect(onDisk('/gym', '/gym/workout-music/index.json')).toBe('/workout-music/index.json')
+    expect(onDisk('/gym', '/gym/workout-music/game-f86c318dd9d4.mp3')).toBe('/workout-music/game-f86c318dd9d4.mp3')
   })
 
   it('reads BASE_PATH as text, not as a pattern', () => {

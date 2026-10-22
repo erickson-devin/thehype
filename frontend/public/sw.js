@@ -34,6 +34,10 @@ const MEDIA_GUESS_BYTES = 64 * 1024
 // than after each one, and once when a new worker activates.
 const MEDIA_TRIM_EVERY = 20
 const isMediaPath = p => p.includes('/exercise-media/') || p.includes('/img/') || p.includes('/gif/')
+// The built-in workout music: 8 MB tracks that <audio> streams in byte ranges. Not cached by the
+// worker yet, so the browser talks to the network itself; index.json stays network-first like the
+// shell.
+const isMusicFile = p => p.includes('/workout-music/') && /\.(mp3|m4a)$/i.test(p)
 
 // The code the app loads only when it needs it (the photo and video ingest, the QR reader...),
 // listed by the build (vite.config.js, scripts/sw-stamp.mjs). Without it the first photo added
@@ -256,6 +260,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url)
   if (e.request.method !== 'GET' || url.origin !== location.origin) return
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith(API)) return    // never cache auth/data
+  if (isMusicFile(url.pathname)) return
 
   if (isMediaPath(url.pathname)) {
     e.respondWith(media(e))

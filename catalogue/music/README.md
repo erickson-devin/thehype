@@ -31,3 +31,12 @@ really an MP3 and writes `sha256`/`bytes` into the manifest. Commit the manifest
 
 If a pinned file ever stops matching, the upstream file changed: re-check the licence, set
 `sha256`/`bytes` back to `null` and pin again.
+
+## Serving
+
+`scripts/music/stage-music.mjs` copies the fetched files into `dist/workout-music/`, renaming each
+track `<id>-<sha12>.mp3` (and `.m4a`) so it can be cached for good; `index.json` is rewritten to
+match. nginx serves `/workout-music/` with immutable caching for the tracks and revalidation for
+`index.json` and `attribution.txt`. CI fetches the files before the GHCR web image build
+(`.github/workflows/docker-publish.yml`). A build without the files stages nothing and has no
+playlist.

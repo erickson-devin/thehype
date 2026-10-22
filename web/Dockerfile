@@ -25,6 +25,15 @@ COPY frontend/ ./
 # cannot be answered from the phone. Unset, the app reports package.json's version as before.
 ARG APP_BUILD=""
 RUN APP_BUILD="$APP_BUILD" npm run build
+# The built-in workout music (issue #23). CI downloads it into catalogue/music/files/ before
+# `docker build` (gitignored, deliberately not in .dockerignore); stage-music.mjs copies it into
+# dist/workout-music/ under content-hashed names. A build without it (local, a failed fetch, the
+# GitLab web-check) stages nothing and the app simply has no playlist. After `npm run build`, so a
+# track change does not rebuild the app. catalogue/music/ always exists (manifest), so this COPY
+# never fails the way a COPY of the optional files/ folder would.
+COPY scripts/music/ /app/scripts/music/
+COPY catalogue/music/ /app/catalogue/music/
+RUN node /app/scripts/music/stage-music.mjs /app/frontend/dist
 
 FROM nginxinc/nginx-unprivileged:alpine
 # Same reason as in api/Dockerfile: alpine fixes land faster than the nginx image is rebuilt.

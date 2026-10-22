@@ -36,6 +36,34 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v7
+        if: matrix.image == 'web'
+        with:
+          node-version: 22
+
+      # Only the MP3s: fetch-music re-verifies each against its sha256 and skips the network on a
+      # match. index.json and attribution.txt are always rebuilt, never restored.
+      - uses: actions/cache@v6
+        if: matrix.image == 'web'
+        with:
+          path: catalogue/music/files/*.mp3
+          key: workout-music-${{ hashFiles('catalogue/music/manifest.json') }}
+          restore-keys: workout-music-
+
+      # Downloaded here rather than in the Dockerfile so a flaky host costs the playlist, not the
+      # image: after three failed attempts the web image is built without it (web/Dockerfile's
+      # stage-music stages nothing). The context is `.`, so catalogue/music/files/ is in it.
+      - name: Fetch the workout music (an image without it still works)
+        if: matrix.image == 'web'
+        run: |
+          rm -f catalogue/music/files/index.json catalogue/music/files/attribution.txt
+          for i in 1 2 3; do
+            if node scripts/music/fetch-music.mjs; then exit 0; fi
+            [ "$i" -lt 3 ] && { echo "attempt $i failed, retrying in 30 s"; sleep 30; }
+          done
+          rm -f catalogue/music/files/index.json
+          echo "::warning title=Workout music::fetch failed 3 times; this web image ships without the built-in playlist"
+
       - name: Lowercase owner (registry names must be lowercase)
         id: repo
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"

@@ -166,6 +166,34 @@ server {
         }
     }
 
+    # The built-in workout music: MP3s the build stages under content-hashed names
+    # (scripts/music/stage-music.mjs), plus index.json and attribution.txt. `^~` so this prefix
+    # beats the regex locations above, and the `types` block replaces the MIME map for it (these
+    # four extensions, nothing else). An image built without the music has no such folder: the
+    # request is a plain 404 here, never the SPA redirect to the app root. A hashed name never
+    # changes, so tracks cache for a year; the index and the attribution are revalidated. Byte
+    # ranges are nginx's static-file default, and Safari will not play an <audio> without them.
+    # The headers are repeated in the nested block, since an add_header replaces the inherited set.
+    location ^~ ${BASE_PATH}/workout-music/ {
+        rewrite ^\Q${BASE_PATH}\E/(.*)$ /$1 break;
+        types { audio/mpeg mp3; audio/mp4 m4a; application/json json; text/plain txt; }
+        charset utf-8;
+        add_header Cache-Control "no-cache";
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "same-origin" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        # Quoted: an unquoted { in a regex starts a block for nginx.
+        location ~* "-[0-9a-f]{12}\.(mp3|m4a)$" {
+            rewrite ^\Q${BASE_PATH}\E/(.*)$ /$1 break;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+            add_header X-Frame-Options "DENY" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header Referrer-Policy "same-origin" always;
+            add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        }
+    }
+
     # Images and fonts never change → cache hard.
     # `expires` would add a second Cache-Control of its own (plus an Expires header) on top of the
     # explicit one below, so the header is set once, here, where `immutable` can be part of it.
