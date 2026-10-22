@@ -9,6 +9,7 @@ import { usesBar, defaultBarWeight, hasBarOverride, isNoBar } from './lib/bar.js
 import { PLATE_SIZES, pairsOf, ownsPlates, withPlatePairs, withStandardPlates, withLoadKind, loadKindFor, baseWeightFor, dropGrid } from './lib/plates.js'
 import { toScale, rirOf, EFFORT_PRESETS, effortColor } from './lib/effort.js'
 import { beep, vibrate, unlock } from './lib/sound.js'
+import { finishHype } from './lib/hype-lines.js'
 import { t, tn, dateLocale, instrFor, instrTranslated, descFor, exerciseNameFor, exerciseNameClass, getLang, useLang } from './lib/i18n.js'
 import { nav, closeThenNav, navToWorkout } from './lib/nav.js'
 import { startWorkoutMusic } from './lib/auto-music.js'
@@ -3325,11 +3326,12 @@ function CardioDone({ st, w }) {
   </div>
 }
 
-function FinishSummary({ w, prs, e1prs = [], close }) {
+function FinishSummary({ w, prs, e1prs = [], hype = '', close }) {
   const st = useStore(s => s.S)
   return <div style={{ textAlign: 'center', padding: '8px 0' }}>
     <div style={{ fontSize: 44, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="trophy" /></div>
     <h3 style={{ margin: '8px 0' }}>{t('Workout complete!')}</h3>
+    {hype && <p className="accent hype-line" style={{ margin: '0 0 12px', fontWeight: 600 }}>{hype}</p>}
     <div className="tiles" style={{ textAlign: 'start' }}>
       <div className="tile"><div className="l">{t('Duration')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{fmtDur(w.end - w.start)}</div></div>
       <div className="tile"><div className="l">{t('Volume')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{fmtVol(w.vol, st.unit)}</div></div>
@@ -3427,5 +3429,7 @@ function doFinishWorkout() {
   // into s.active, which is gone. What it held is not logged, like any set left unchecked.
   useUI.getState().stopWork()
   beep(snd(), 880, 0.15); beep(snd(), 1100, 0.15, 0.18); beep(snd(), 1320, 0.3, 0.36)
-  ui().openSheet(close => <FinishSummary w={shown} prs={prs} e1prs={e1prs} close={close} />, { kind: 'center', locked: true })
+  const fh = past ? null : finishHype(prs, e1prs, setsDone(w))
+  const hype = fh ? ui().hypeLine(fh.event, ...(fh.n != null ? [fh.n] : fh.id ? [EXIDX[fh.id] ? exerciseNameFor(EXIDX[fh.id]) : fh.id] : [])) : ''
+  ui().openSheet(close => <FinishSummary w={shown} prs={prs} e1prs={e1prs} hype={hype} close={close} />, { kind: 'center', locked: true })
 }

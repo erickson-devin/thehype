@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { useUI } from '../store/useUI.js'
+import { restStartHype } from '../lib/hype-lines.js'
 import { exOr, betterWeight } from '../lib/exercises.js'
 import { usesBar } from '../lib/bar.js'
 import { loadKindFor, baseWeightFor, inventoryFor, rowLoad, sameLoad, plateDelta, dropGrid } from '../lib/plates.js'
@@ -925,7 +926,10 @@ function ActiveWorkout() {
   const editing = !!A.editingWorkoutId
   // A past workout has no rest to time — the sets were done days ago. The work timer for
   // timed sets stays, since counting a hold is how its duration gets entered.
-  const startRest = (A.backfill || editing) ? () => {} : liveRest
+  const startRest = (A.backfill || editing) ? () => {} : (sec, forIdx, opts) => {
+    liveRest(sec, forIdx, opts)
+    if (restStartHype(sec, opts)) useUI.getState().hypeToast?.('restStart')   // toast only, never spoken
+  }
   const units = supersetUnits(A.entries)
   const cur = Number.isInteger(A.cur)
     ? Math.min(Math.max(A.cur, 0), Math.max(0, A.entries.length - 1))

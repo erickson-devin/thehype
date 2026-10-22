@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
     work: null,
     startWork: vi.fn(),
     startRest: vi.fn(),
+    hypeToast: vi.fn(),
     startWork: vi.fn(),
     stopRest: null,
     stopWork: null,
@@ -61,6 +62,7 @@ const mocks = vi.hoisted(() => {
     shiftRestOwner: vi.fn(),
     startWork: state.startWork,
     toast: state.toast,
+    hypeToast: state.hypeToast,
   })
   return state
 })
@@ -300,12 +302,23 @@ describe('Workout set completion flow', () => {
     expect(mocks.startRest).toHaveBeenCalledTimes(3)
   })
 
+  it('gives no hype toast for the short Switch sides pause between the two sides of a timed set', async () => {
+    await mount([exercise('side-plank', [false], {
+      target: { mode: 'time', sec: 30, weight: 0, restSec: 90 },
+      sets: [{ w: 0, sec: 30, side: 'L', done: false }, { w: 0, sec: 30, side: 'R', done: false }],
+    })])
+    await toggleSet(0)
+    expect(mocks.startRest).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), expect.objectContaining({ kind: 'switch' }))
+    expect(mocks.hypeToast).not.toHaveBeenCalled()
+  })
+
   it('starts rest after a non-final ordinary set, but stops rest without restarting it on the final set', async () => {
     await mount([exercise('plain-bench', [false, false, false])])
     await toggleSet(0)
 
     expect(mocks.startRest).toHaveBeenCalledOnce()
     expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), { forSet: expect.any(Number) })
+    expect(mocks.hypeToast).toHaveBeenCalledWith('restStart')
     expect(mocks.stopRest).not.toHaveBeenCalled()
 
     await unmount()

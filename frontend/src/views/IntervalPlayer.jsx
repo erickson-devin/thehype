@@ -10,6 +10,7 @@ import { bestWeightForEntry } from '../lib/history.js'
 import { buildIntervals, intervalSettings, nextWork, remainingSec } from '../lib/interval-plan.js'
 import { speak, stopSpeaking, countdownBeep } from '../lib/interval-audio.js'
 import { finishWorkout } from '../sheets.jsx'
+import { drawHype, hypeEventsFor, hypeMarks, initHype } from '../lib/hype-lines.js'
 import Icon from '../components/Icon.jsx'
 
 const mmss = sec => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
@@ -51,6 +52,10 @@ export default function IntervalPlayer() {
   const lastBeep = useRef(null)
   const mutedRef = useRef(muted)
   mutedRef.current = muted
+  const [marks] = useState(() => hypeMarks(blocks))
+  const hype = useRef(null); if (!hype.current) hype.current = initHype(Date.now())
+  const fired = useRef(new Set())
+  const hypeText = ev => { const r = drawHype(hype.current, ev.event, ...(ev.id ? [nameOf(ev.id)] : [])); hype.current = r.state; return r.text }
 
   const block = blocks[idx]
   const coming = nextWork(blocks, idx) // what is announced and shown as "Up next"
@@ -94,6 +99,11 @@ export default function IntervalPlayer() {
       // 3-2-1: one beep as each of the last three seconds begins (and none twice, even when the
       // interval fires more than once inside a second).
       if (sec <= 3 && sec >= 1 && lastBeep.current !== sec) { lastBeep.current = sec; countdownBeep(sec, !mutedRef.current && !!sound) }
+      for (const ev of hypeEventsFor(blocks, idx, sec, fired.current, marks)) {
+        if (ev.event !== 'finalTen') continue   // block-start events are the cue effect's
+        fired.current.add(ev.key)
+        if (!mutedRef.current) speak(hypeText(ev), getLang())
+      }
       if (ms <= 0) { clearInterval(id); advance() }
     }
     const id = setInterval(tick, 200)
@@ -108,10 +118,14 @@ export default function IntervalPlayer() {
   // A Work block opens with a high beep and a spoken "Go!", the cue to move, so nobody has to
   // look at the screen to know the rest is over; the first one also names the exercise.
   useEffect(() => {
-    if (!block || finished || mutedRef.current) return
+    if (!block || finished) return
+    const due = hypeEventsFor(blocks, idx, block.sec, fired.current, marks)
+    due.forEach(ev => fired.current.add(ev.key))   // muted or not: unmuting never replays one
+    if (mutedRef.current) return
     if (block.kind === 'rest') { speak(t('Rest for {0} seconds. Next up: {1}', block.sec, nameOf(coming?.id)), getLang()); return }
     countdownBeep(0, !!sound)
-    speak(idx === 0 ? t('First up: {0}. Go!', nameOf(block.id)) : t('Go!'), getLang())
+    const cue = idx === 0 ? t('First up: {0}. Go!', nameOf(block.id)) : t('Go!')
+    speak(due.length ? cue + ' ' + hypeText(due[0]) : cue, getLang())   // one utterance: speak() cancels what is playing
   }, [idx]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Out of blocks: say so, then hand over to the ordinary finish (it asks about anything unchecked).

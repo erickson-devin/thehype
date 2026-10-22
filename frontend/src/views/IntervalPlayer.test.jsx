@@ -27,6 +27,7 @@ import { speak, countdownBeep } from '../lib/interval-audio.js'
 import { unlock } from '../lib/sound.js'
 import { finishWorkout } from '../sheets.jsx'
 import { getLang } from '../lib/i18n.js'
+import { HYPE_LINES } from '../lib/hype-lines.js'
 
 let host, root
 beforeEach(() => {
@@ -162,5 +163,42 @@ describe('the player’s exercise picture', () => {
     mocks.S.gifSize = 'off'
     remount()
     expect(host.querySelector('.ip-media')).toBeNull()
+  })
+})
+
+describe('hype lines', () => {
+  const ticks = async (...steps) => { for (const ms of steps) await tick(ms) }
+  const four = () => {
+    mocks.S.active.entries = ['0001', '0001', '0001', '0001'].map(id => ({ id, target: { sets: 1, reps: 10 }, sets: [{ w: 0, r: 10, done: false }] }))
+    remount()
+  }
+
+  it('adds a halfway line to the Go!, then a final-round line naming the exercise', async () => {
+    four()
+    await ticks(10_000, 5_000, 10_000, 5_000)   // one block per act: the player re-renders between blocks
+    const half = said().at(-1).match(/^Go! (.+)$/)
+    expect(half).toBeTruthy()
+    expect(HYPE_LINES.halfway).toContain(half[1])
+    await ticks(10_000, 5_000)
+    const last = said().at(-1)
+    expect(last.startsWith('Go! ')).toBe(true)
+    const name = host.querySelector('div[style*="font-size: 28px"]').textContent
+    expect(HYPE_LINES.lastRound.map(l => l.replace('{0}', name))).toContain(last.slice(4))
+  })
+
+  it('says none of it when muted', async () => {
+    four()
+    const mute = [...host.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'Mute')
+    act(() => { mute.click() })
+    speak.mockClear()
+    await ticks(10_000, 5_000, 10_000, 5_000, 10_000, 5_000)
+    expect(speak).not.toHaveBeenCalled()
+  })
+
+  it('calls the last ten seconds of a long work block', async () => {
+    mocks.S.routines[0].autoWorkSec = 30
+    remount()
+    await tick(20_500)
+    expect(HYPE_LINES.finalTen).toContain(said().at(-1))
   })
 })

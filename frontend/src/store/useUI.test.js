@@ -3,6 +3,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { useUI } from './useUI.js'
 import { useStore } from './useStore.js'
+import { HYPE_LINES } from '../lib/hype-lines.js'
 
 // "Off" has to hold at the timer itself, not at the four places that start one — the same
 // reason the rest-after-a-set rule is a shared condition rather than four copies.
@@ -303,3 +304,27 @@ describe('addRest adjustments', () => {
   })
 })
 
+
+describe('hype lines', () => {
+  beforeEach(() => { vi.useFakeTimers(); useUI.setState({ toastMsg: '', toastAction: null }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('hypeLine draws a restStart line and does not repeat it', () => {
+    const a = useUI.getState().hypeLine('restStart')
+    const b = useUI.getState().hypeLine('restStart')
+    expect(HYPE_LINES.restStart).toContain(a)
+    expect(HYPE_LINES.restStart).toContain(b)
+    expect(a).not.toBe(b)
+  })
+
+  it('hypeToast shows a line when no toast is up', () => {
+    useUI.getState().hypeToast('restStart')
+    expect(HYPE_LINES.restStart).toContain(useUI.getState().toastMsg)
+  })
+
+  it('hypeToast leaves a toast already showing alone', () => {
+    useUI.getState().toast('Hold logged')
+    useUI.getState().hypeToast('restStart')
+    expect(useUI.getState().toastMsg).toBe('Hold logged')
+  })
+})

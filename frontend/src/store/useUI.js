@@ -8,6 +8,7 @@ import { deviceId } from '../lib/push.js'
 import { MOBILE } from '../lib/mobile.js'
 import { armRestAlert, bindNativeRest, disarmRestAlert, holdRestAlert, toneNative } from '../lib/rest-alert.js'
 import { useStore } from './useStore.js'
+import { drawHype, initHype } from '../lib/hype-lines.js'
 import { REST_MAX } from '../lib/duration.js'
 import { accentValue } from '../lib/accent.js'
 
@@ -245,6 +246,10 @@ export const useUI = create((set, get) => ({
   // the action as a button at its end and holds still while a finger rests on it (pauseToast). A
   // new toast replaces the one showing, action and all: the old Undo is gone, what it would have
   // undone stays done. The action runs once at most, and the toast goes with it.
+  hype: initHype(Date.now()),   // hype-line rotation (lib/hype-lines.js), app-wide so the toasts and the finish line share it
+  hypeLine(event, ...args) { const r = drawHype(get().hype, event, ...args); set({ hype: r.state }); return r.text },
+  // A hype toast never replaces a toast already showing ("Hold logged", an Undo): it simply skips.
+  hypeToast(event, ...args) { if (get().toastMsg) return; const text = get().hypeLine(event, ...args); if (text) get().toast(text) },
   toast(msg, { action, onAction, ms } = {}) {
     const withAction = !!(action && typeof onAction === 'function')
     clearTimeout(toastTm)
