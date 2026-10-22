@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { cleanDeepLink, cleanWebhookUrl, musicPlan, openLink, startWorkoutMusic, MUSIC_FIELD_MAX } from './auto-music.js'
+import { cleanDeepLink, cleanWebhookUrl, musicPlan, openLink, startWorkoutMusic, webhookBlockedReason, MUSIC_FIELD_MAX } from './auto-music.js'
 
 describe('cleanWebhookUrl', () => {
   it('keeps an http or https address, trimmed', () => {
@@ -48,7 +48,7 @@ describe('startWorkoutMusic', () => {
   it('calls the webhook with a silent no-cors request and leaves the deep link alone', () => {
     const fetchFn = vi.fn(() => Promise.resolve()), open = vi.fn()
     expect(startWorkoutMusic({ musicWebhookUrl: hook, musicDeepLink: link }, { fetchFn, open })).toBe('webhook')
-    expect(fetchFn).toHaveBeenCalledWith(hook, { method: 'GET', mode: 'no-cors' })
+    expect(fetchFn).toHaveBeenCalledWith(hook, { method: 'POST', mode: 'no-cors' })
     expect(open).not.toHaveBeenCalled()
   })
   it('opens the deep link when there is no webhook', () => {
@@ -92,5 +92,47 @@ describe('openLink', () => {
     openLink('https://open.spotify.com/playlist/x', { win, native: true })
     expect(win.location.href).toBe('https://open.spotify.com/playlist/x')
     expect(win.open).not.toHaveBeenCalled()
+  })
+})
+
+describe('webhookBlockedReason', () => {
+  const lan = 'http://192.168.1.20:5000/start-music'
+  it('blocks a plain http address from an https page', () => {
+    expect(webhookBlockedReason(lan, { secureOrigin: true })).toBe('mixed')
+    expect(webhookBlockedReason('HTTP://ha.local:8123/api/webhook/x', { secureOrigin: true })).toBe('mixed')
+  })
+  it('lets it through from an http page', () => {
+    expect(webhookBlockedReason(lan, { secureOrigin: false })).toBeNull()
+    expect(webhookBlockedReason(lan)).toBeNull()
+  })
+  it('lets https and loopback through', () => {
+    expect(webhookBlockedReason('https://hooks.example.com/play', { secureOrigin: true })).toBeNull()
+    for (const u of ['http://localhost:5000/x', 'http://127.0.0.1/x', 'http://[::1]:8123/x', 'http://speaker.localhost/x']) expect(webhookBlockedReason(u, { secureOrigin: true }), u).toBeNull()
+  })
+  it('allows cleartext in the Android app', () => {
+    expect(webhookBlockedReason('http://192.168.1.20/x', { native: true, android: true, secureOrigin: true })).toBeNull()
+  })
+  it('applies App Transport Security in the iOS app', () => {
+    expect(webhookBlockedReason('http://192.168.1.20/x', { native: true })).toBeNull()
+    expect(webhookBlockedReason('http://ha.local/x', { native: true })).toBeNull()
+    expect(webhookBlockedReason('http://speaker/x', { native: true })).toBeNull()
+    expect(webhookBlockedReason('http://hooks.example.com/x', { native: true })).toBe('cleartext')
+    expect(webhookBlockedReason('https://hooks.example.com/x', { native: true })).toBeNull()
+  })
+  it('has nothing to say about an unusable address', () => {
+    for (const v of ['', null, undefined, 'javascript:alert(1)', 'spotify:playlist:x', 'ftp://h/x']) expect(webhookBlockedReason(v, { secureOrigin: true }), String(v)).toBeNull()
+  })
+})
+
+describe('musicPlan falls back', () => {
+  const hook = 'http://192.168.1.20/x', link = 'spotify:playlist:abc'
+  it('uses the link when the webhook cannot fire from here', () => {
+    expect(musicPlan({ musicWebhookUrl: hook, musicDeepLink: link }, { secureOrigin: true })).toEqual({ kind: 'link', url: link })
+  })
+  it('keeps the webhook where it can fire', () => {
+    expect(musicPlan({ musicWebhookUrl: hook, musicDeepLink: link }, { secureOrigin: false })).toEqual({ kind: 'webhook', url: hook })
+  })
+  it('is nothing when blocked and there is no link', () => {
+    expect(musicPlan({ musicWebhookUrl: hook }, { secureOrigin: true })).toBeNull()
   })
 })

@@ -49,7 +49,7 @@ beforeEach(() => {
   document.body.appendChild(host)
   root = createRoot(host)
 })
-afterEach(() => { act(() => root.unmount()); host.remove() })
+afterEach(() => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals() })
 
 const mount = () => act(() => root.render(<Settings page="workout" />))
 const field = label => host.querySelector(`input[aria-label="${label}"]`)
@@ -58,6 +58,8 @@ const type = (el, value) => act(() => {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value)
   el.dispatchEvent(new Event('input', { bubbles: true }))
 })
+const https = () => vi.stubGlobal('location', { protocol: 'https:', href: 'https://hype.example/settings', origin: 'https://hype.example', hostname: 'hype.example' })
+const WARN = 'the music will not start'
 const leave = el => act(() => { el.blur() })
 
 describe('Settings → Workout → Music Integration', () => {
@@ -105,5 +107,40 @@ describe('Settings → Workout → Music Integration', () => {
     type(field('Phone / Headphone Audio'), '')
     leave(field('Phone / Headphone Audio'))
     expect(mocks.S.musicDeepLink).toBe('')
+  })
+
+  describe('the address warning', () => {
+    const lan = 'http://192.168.1.20:5000/start-music'
+    it('warns when an https page has a plain http address saved', () => {
+      https()
+      mocks.S.musicWebhookUrl = lan
+      mount()
+      expect(host.textContent).toContain(WARN)
+      expect(host.textContent).toContain('reverse proxy')
+    })
+    it('is quiet on an http page', () => {
+      mocks.S.musicWebhookUrl = lan
+      mount()
+      expect(host.textContent).not.toContain(WARN)
+    })
+    it('is quiet for an https address', () => {
+      https()
+      mocks.S.musicWebhookUrl = 'https://hooks.example.com/play'
+      mount()
+      expect(host.textContent).not.toContain(WARN)
+    })
+    it('appears once a plain http address is saved from the field', () => {
+      https()
+      mount()
+      type(field('Room Speakers (Advanced)'), '  http://192.168.1.20:5000/start-music ')
+      leave(field('Room Speakers (Advanced)'))
+      expect(host.textContent).toContain(WARN)
+    })
+    it('is quiet for a deep link', () => {
+      https()
+      mocks.S.musicDeepLink = 'spotify:playlist:abc'
+      mount()
+      expect(host.textContent).not.toContain(WARN)
+    })
   })
 })

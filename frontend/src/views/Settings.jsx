@@ -34,7 +34,7 @@ import { CUSTOM, accentKey, adjustedIn, applyAccent, cleanHex, inkOn, isGrey } f
 import { checkForUpdate, downloadAndInstall, fetchChecksum, RELEASES_PAGE } from '../lib/update.js'
 import { forgetCoach } from '../lib/coach-api.js'
 import { REST_MAX, REST_PAUSE_MIN, REST_PAUSE_MAX, fmtRest, fmtDuration } from '../lib/duration.js'
-import { cleanWebhookUrl, cleanDeepLink, MUSIC_FIELD_MAX } from '../lib/auto-music.js'
+import { cleanWebhookUrl, cleanDeepLink, webhookBlockedReason, musicContext, MUSIC_FIELD_MAX } from '../lib/auto-music.js'
 import { starterPlanSheet, confirmSheet, importFromApp, importFromHevy, equipmentProfileSheet, plateInventorySheet, dumbbellInventorySheet, menuSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { durationSheet } from '../components/DurationWheel.jsx'
@@ -510,17 +510,17 @@ export default function Settings({ page = null, find = null, via = null }) {
             onChange={v => update(s => { s.gifSize = v })} />
         </Row>
       </Section>
-      {/* Music for automated workouts (lib/auto-music.js): saved on this profile, so each person on an
+      {/* Music for every workout (lib/auto-music.js): saved on this profile, so each person on an
           instance brings their own player. Room Speakers (the webhook) win when both are filled in. */}
       <Section title={t('Music Integration')} footer={<>
-        {t('Starts your music automatically when an interval workout begins.')}
+        {t('Starts your music automatically when a workout begins.')}
         <br />• {t('Room Speakers: Great for home gyms where music plays over smart speakers while voice cues stay on your phone.')}
         <br />• {t('Phone / Headphone Audio: Best for earbuds or workouts on the go.')}
         <br />{t('If both are configured, Room Speakers take priority. Leave both empty for silence.')}
       </>}>
         <MusicField icon="speaker" iconTint="var(--pink)" title={t('Room Speakers (Advanced)')}
-          subtitle={t('Plays music across your home/gym network speakers via your server endpoint.')}
-          field="musicWebhookUrl" clean={cleanWebhookUrl} placeholder="https://music.yourdomain.com/start-music"
+          subtitle={t('Sends a POST to your server endpoint when a workout starts, to play music on your home/gym speakers.')}
+          field="musicWebhookUrl" clean={cleanWebhookUrl} warn={webhookWarning} placeholder="https://music.yourdomain.com/start-music"
           invalid={t('Enter a full web address starting with http:// or https://')} />
         <MusicField icon="headphones" iconTint="var(--green)" title={t('Phone / Headphone Audio')}
           subtitle={t('Opens your music app (Spotify, Apple Music) directly on this device.')}
@@ -1362,12 +1362,21 @@ async function clearMediaAfterReset(signedIn) {
    waiting to go up; a tap sends what is waiting now, offers again what the server refused, and
    lets a device that showed a file as missing ask for it again. On a device without a server that
    stores media, it says they are kept here only. */
+// Room Speakers: an address that cannot fire from here (lib/auto-music.js webhookBlockedReason).
+function webhookWarning(url) {
+  const why = webhookBlockedReason(url, musicContext())
+  if (why === 'mixed') return t('This page is served over https, so your browser blocks a plain http:// address and the music will not start. Put the endpoint behind an https reverse proxy, or clear this field and use Phone / Headphone Audio.')
+  if (why === 'cleartext') return t('The iPhone app cannot call a plain http:// address on a public hostname, so the music will not start. Use the device’s IP or .local name, an https reverse proxy, or clear this field and use Phone / Headphone Audio.')
+  return null
+}
+
 /* One of the two Music Integration inputs. Typing is local; the value is checked and saved when the
    field loses focus or Enter is pressed, so a half-typed address is never synced or used. An empty
    field clears the setting. An unusable value is left unsaved and the field says why. */
-function MusicField({ icon, iconTint, title, subtitle, field, clean, placeholder, invalid }) {
+function MusicField({ icon, iconTint, title, subtitle, field, clean, placeholder, invalid, warn }) {
   const update = useStore(s => s.update)
   const saved = useStore(s => s.S[field]) || ''
+  const warning = warn ? warn(saved) : null
   const [text, setText] = useState(saved)
   const [bad, setBad] = useState(false)
   // Follows the profile when it changes underneath (a sync from another device) while not being edited.
@@ -1391,6 +1400,7 @@ function MusicField({ icon, iconTint, title, subtitle, field, clean, placeholder
         onChange={e => { setText(e.target.value); if (bad) setBad(false) }}
         onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} />
       {bad && <div className="small" role="alert" style={{ color: 'var(--red)', marginTop: 6 }}>{invalid}</div>}
+      {!bad && warning && <div className="small" role="note" style={{ color: 'var(--orange)', marginTop: 6, lineHeight: 1.45 }}>{warning}</div>}
     </div>
   </>
 }

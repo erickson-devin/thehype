@@ -2802,9 +2802,13 @@ export function beginWorkout(routineIds, bw) {
     }
   })
   useUI.getState().stopRest()
-  // The profile's own music setup, still inside the tap that started the workout (a browser only
-  // lets a tap open another app). Webhook first, else the deep link, else nothing.
-  if (auto) { unlock(st.sound); startWorkoutMusic(st) }
+  // The profile's own music setup, for every workout started here (manual or follow-along), still
+  // inside the tap that started it (a browser only lets a tap open another app). Webhook first,
+  // else the deep link, else nothing. Only the follow-along player needs the audio woken now, for
+  // its first beep; a manual session wakes it at the set tick that leads to a timer (Workout.jsx),
+  // and waking it for nothing is avoided: under iOS's 'playback' session it pauses other audio (sound.js).
+  if (auto) unlock(st.sound)
+  startWorkoutMusic(st)
   navToWorkout()
 }
 
@@ -2826,6 +2830,7 @@ export function repeatWorkout(w, close) {
       }
     })
     useUI.getState().stopRest()
+    startWorkoutMusic(S())   // Repeat today is a workout start too
     if (close) closeThenNav(close, '/workout'); else navToWorkout()
     if (skipped) toast(tn('{0} exercise no longer exists and was left out.', '{0} exercises no longer exist and were left out.', skipped))
   }

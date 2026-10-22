@@ -81,6 +81,9 @@ Yes. Everyone creates their own profile and sees only their own data. You can ma
 invite-only and give yourself an admin dashboard; see
 [multiple users](SELF_HOSTING.md#4-multiple-users).
 
+### Can The Hype start my music when a workout begins?
+Yes, with either of two settings under Settings → Workout → Music: a deep link, which opens the music app on this device (for example `spotify:playlist:…`), or a webhook, where The Hype sends a `POST` with no body to your address when any workout starts (Home Assistant's webhook trigger accepts this by default). From a page served over https the browser cannot call a plain `http://` address on your LAN, and Settings warns you when that is the case; put the endpoint behind an https reverse proxy, or use the deep link. The music is a nicety: a failed call never stops the workout.
+
 ### How do I update?
 
 `git pull && docker compose pull && docker compose up -d`. Your data is untouched. See
