@@ -40,6 +40,7 @@ beforeEach(() => {
       entries: [{ id: '0001', target: { sets: 2, reps: 10 }, sets: [{ w: 0, r: 10, done: false }, { w: 0, r: 10, done: false }] }],
     },
   }
+  HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve())
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -51,6 +52,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+const remount = () => { act(() => root.unmount()); root = createRoot(host); act(() => root.render(<IntervalPlayer />)) }
 const tick = ms => act(async () => { vi.advanceTimersByTime(ms) })
 const button = label => [...host.querySelectorAll('button')].find(b => b.textContent.trim() === label)
 const said = () => speak.mock.calls.map(c => c[0])
@@ -120,5 +122,45 @@ describe('the player’s controls', () => {
     act(() => { button('Skip').click() })
     await tick(100)
     expect(mocks.S.active.entries[0].sets[0].done).toBe(false)
+  })
+})
+
+describe('the player’s exercise picture', () => {
+  const entry = id => ({ id, target: { sets: 1, reps: 10 }, sets: [{ w: 0, r: 10, done: false }] })
+
+  it('shows the animation of the exercise being worked', () => {
+    expect(host.querySelector('.ip-media video').getAttribute('src')).toMatch(/clip\/0001\.mp4$/)
+  })
+
+  it('shows the next exercise during the rest', async () => {
+    mocks.S.active.entries = [entry('0001'), entry('9066')]
+    remount()
+    await tick(10_000)
+    expect(host.querySelector('.ip-media video').getAttribute('src')).toMatch(/9066\.mp4$/)
+    expect(host.textContent).toContain('Up next')
+  })
+
+  it('leaves the name to carry the block for an exercise it does not know', () => {
+    mocks.S.active.entries = [entry('zz-unknown')]
+    remount()
+    expect(host.querySelector('.ip-media')).toBeNull()
+    expect(host.querySelector('.exmedia')).toBeNull()
+    expect(host.textContent).toContain('Unknown Exercise')
+  })
+
+  it('shows the still under reduced motion', () => {
+    const saved = window.matchMedia
+    window.matchMedia = q => ({ matches: q.includes('reduce'), addEventListener() {}, removeEventListener() {} })
+    try {
+      remount()
+      expect(host.querySelector('.ip-media video')).toBeNull()
+      expect(host.querySelector('.ip-media img.thumb').getAttribute('src')).toMatch(/still\/0001\.webp$/)
+    } finally { window.matchMedia = saved }
+  })
+
+  it('shows no picture when animations are hidden in Settings', () => {
+    mocks.S.gifSize = 'off'
+    remount()
+    expect(host.querySelector('.ip-media')).toBeNull()
   })
 })

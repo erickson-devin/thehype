@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
-import { exOr } from '../lib/exercises.js'
+import { exOr, isCustomEx } from '../lib/exercises.js'
+import { mediaOf } from '../lib/media-refs.js'
+import Media, { Thumb } from '../components/Media.jsx'
 import { exerciseNameText } from '../lib/format.js'
 import { t, getLang } from '../lib/i18n.js'
 import { unlock } from '../lib/sound.js'
@@ -12,6 +14,12 @@ import Icon from '../components/Icon.jsx'
 
 const mmss = sec => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
 const nameOf = id => exerciseNameText(exOr(id))
+// Whether an exercise has a picture to show: a catalogue animation, or a custom exercise's own file.
+// Neither (a custom exercise without one, an unknown id) leaves the name to carry the block.
+const hasMedia = ex => (isCustomEx(ex) ? !!mediaOf(ex) : !!ex?.gif)
+const reducedMotion = () => {
+  try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
+}
 
 // Follow-along ("automated workout") player. Mounted by the /workout route in place of the manual
 // workout screen while S.active.auto is set (beginWorkout, sheets.jsx). The session itself is the
@@ -21,6 +29,7 @@ export default function IntervalPlayer() {
   const update = useStore(s => s.update)
   const A = useStore(s => s.S.active)
   const sound = useStore(s => s.S.sound)
+  const gifOff = useStore(s => s.S.gifSize === 'off')   // Settings → Exercise animations: Hidden
 
   // Flattened once, when the player opens: [Work, Rest, Work, …]. Later edits to the routine do
   // not move a session that is already running.
@@ -135,6 +144,10 @@ export default function IntervalPlayer() {
   const workBlocks = blocks.filter(b => b.kind === 'work')
   const setNo = blocks.slice(0, idx + 1).filter(b => b.kind === 'work').length
   const label = resting ? t('Rest') : t('Work')
+  // Work shows the exercise being done; Rest shows the next one, so you are set up before "Go!".
+  const shownId = resting ? coming?.id : block.id
+  const shownEx = shownId ? exOr(shownId) : null
+  const picture = !gifOff && !!shownEx && hasMedia(shownEx)
 
   return <div role="main" aria-label={t('Follow-along workout')} style={{
     position: 'fixed', inset: 0, zIndex: 50, color: 'var(--label)',
@@ -148,10 +161,13 @@ export default function IntervalPlayer() {
         aria-label={muted ? t('Unmute') : t('Mute')}><Icon name={muted ? 'bellSlash' : 'bell'} /></button>
     </div>
 
-    <div>
+    <div style={{ width: '100%', maxWidth: 420 }}>
       <div style={{ fontSize: 18, letterSpacing: '.12em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, margin: '6px 0 0' }}>{resting ? t('Get ready') : nameOf(block.id)}</div>
-      <div aria-live="off" style={{ fontSize: 'min(40vw, 220px)', lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: accent, margin: '12px 0', textShadow: `0 0 48px color-mix(in srgb, ${accent} 55%, transparent)` }}>{left}</div>
+      {picture && <div className="ip-media" key={shownId}>
+        {reducedMotion() ? <Thumb ex={shownEx} /> : <Media ex={shownEx} />}
+      </div>}
+      <div aria-live="off" style={{ fontSize: picture ? 'min(32vw, 18vh, 200px)' : 'min(40vw, 220px)', lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: accent, margin: picture ? '8px 0' : '12px 0', textShadow: `0 0 48px color-mix(in srgb, ${accent} 55%, transparent)` }}>{left}</div>
       <div className="dim" style={{ fontSize: 18 }}>
         {coming ? t('Up next: {0}', nameOf(coming.id)) : t('Last one!')}
       </div>

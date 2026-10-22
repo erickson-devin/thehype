@@ -922,6 +922,13 @@ body.chips-dragging *{cursor:inherit}
 .exmedia:has(> video){background:#000}
 /* a catalogue animation: drawn on white, like the stills next to it */
 .exmedia video.catvid,.exmedia:has(> video.catvid){background:#fff}
+/* the follow-along player (views/IntervalPlayer.jsx): one exercise, as large as the countdown and
+   the controls leave room for. Under reduced motion it is the still (a .thumb), at the same size. */
+.ip-media{width:100%;max-width:420px;margin:10px auto 0}
+.ip-media .exmedia{margin:0}
+.ip-media .exmedia img,.ip-media .exmedia video,.ip-media .exmedia-x{height:clamp(140px,30vh,320px)}
+.ip-media .thumb{width:100%;height:clamp(140px,30vh,320px);border-radius:var(--r-lg);object-fit:contain;display:block}
+.ip-media .thumb-x{font-size:34px}
 
 /* the link to a video or a guide (#246): a quiet action tile under the picture, or in its place.
    A <button>, so the reset of the browser's button look comes first. */
