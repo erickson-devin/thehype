@@ -10,6 +10,8 @@ never committed: `scripts/music/fetch-music.mjs` downloads it at build time into
     node scripts/music/fetch-music.mjs --check    # validate the manifest only (what CI runs)
     node scripts/music/fetch-music.mjs --encode   # also make <id>.m4a (AAC 96k); needs ffmpeg, skipped without it
 
+The mirror (`mirrorUrl`) is tried first, then the original host.
+
 Output in `files/`: `<id>.mp3`, `index.json` (what the app reads) and `attribution.txt`.
 
 ## Adding a track
@@ -28,6 +30,11 @@ Open an issue or pull request with one new entry in `manifest.json`. Before addi
 
 Then run `node scripts/music/fetch-music.mjs --pin --only <id>`. It downloads the file, checks it is
 really an MP3 and writes `sha256`/`bytes` into the manifest. Commit the manifest.
+
+6. **Mirror it.** After pinning, upload the file as `<id>.mp3` to the `music-v1` release
+   (`gh release upload music-v1 catalogue/music/files/<id>.mp3 --repo erickson-devin/thehype`) and
+   set `mirrorUrl` to its asset URL. Origin hosts can refuse CI's addresses; the pinned hash keeps
+   the mirror honest, since a mirror serving different bytes fails verification.
 
 If a pinned file ever stops matching, the upstream file changed: re-check the licence, set
 `sha256`/`bytes` back to `null` and pin again.

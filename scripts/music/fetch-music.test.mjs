@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import {
-  attributionLines, attributionText, fetchOptionsFor, indexFor, looksLikeMp3, parseArgs, serializeManifest, validateManifest,
+  attributionLines, attributionText, fetchCandidates, fetchOptionsFor, indexFor, looksLikeMp3, parseArgs, serializeManifest, validateManifest,
 } from './lib.mjs'
 
 const text = fs.readFileSync(new URL('../../catalogue/music/manifest.json', import.meta.url), 'utf8')
@@ -35,6 +35,15 @@ test('validateManifest rejects policy violations', () => {
   bad((m) => { m.tracks[0].sha256 = null; m.tracks[0].bytes = 1 }, /sha256|bytes/)
   bad((m) => { m.policy.licenses.push('CC-BY-SA-4.0') }, /licenses/)
   bad((m) => { m.tracks[0].AI = false }, /AI/)
+})
+
+test('validateManifest checks mirrorUrl', () => {
+  bad((m) => { m.tracks[0].mirrorUrl = 'https://example.com/x.mp3' }, /mirrorUrl/)
+  bad((m) => { m.tracks[0].mirrorUrl = m.tracks[1].mirrorUrl }, /mirrorUrl/)
+  bad((m) => { delete m.tracks[0].mirrorUrl }, /mirrorUrl/)
+  const m = clone()
+  m.tracks[0].mirrorUrl = null
+  assert.deepEqual(validateManifest(m), [])
 })
 
 test('validateManifest accepts an empty attribution on a CC0 track', () => {
@@ -82,11 +91,24 @@ test('fetchOptionsFor', () => {
   assert.equal(st.redirect, 'follow')
 })
 
+test('fetchCandidates', () => {
+  const st = real.tracks.find((t) => t.id === 'shiny-tech')
+  const c = fetchCandidates(st)
+  assert.deepEqual(c.map((x) => x.label), ['mirror', 'origin'])
+  assert.equal(c[0].url, 'https://github.com/erickson-devin/thehype/releases/download/music-v1/shiny-tech.mp3')
+  assert.equal(c[1].url, st.downloadUrl)
+  const ayr = fetchCandidates(real.tracks.find((t) => t.id === 'are-you-ready'))
+  assert.deepEqual(Object.keys(ayr[0].headers), [])
+  assert.equal(ayr[1].headers.Referer, 'https://ccmixter.org/')
+  const solo = fetchCandidates({ ...st, mirrorUrl: null })
+  assert.deepEqual(solo.map((x) => x.label), ['origin'])
+})
+
 test('indexFor', () => {
   const idx = indexFor(real)
   assert.equal(idx.tracks.length, 12)
   for (const [i, t] of idx.tracks.entries()) {
-    for (const k of ['sourceUrl', 'downloadUrl', 'fetch', 'verifiedOn', 'verifiedBy', 'ai', 'm4a']) assert.ok(!(k in t), k)
+    for (const k of ['sourceUrl', 'downloadUrl', 'mirrorUrl', 'fetch', 'verifiedOn', 'verifiedBy', 'ai', 'm4a']) assert.ok(!(k in t), k)
     assert.equal(t.file, t.id + '.mp3')
     assert.equal(t.licenseUrl, real.tracks[i].licenseUrl)
   }

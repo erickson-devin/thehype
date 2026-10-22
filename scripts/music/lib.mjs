@@ -8,8 +8,9 @@ export const LICENSE_URLS = {
   'CC-BY-4.0': 'https://creativecommons.org/licenses/by/4.0/',
 }
 export const LICENSE_LABELS = { 'CC-BY-4.0': 'CC BY 4.0', 'CC-BY-3.0': 'CC BY 3.0', 'CC0-1.0': 'CC0 1.0' }
-export const TRACK_KEYS = ['id', 'title', 'artist', 'license', 'licenseUrl', 'sourceUrl', 'downloadUrl', 'fetch', 'attribution', 'durationSec', 'bpm', 'ai', 'sha256', 'bytes', 'verifiedOn', 'verifiedBy']
+export const TRACK_KEYS = ['id', 'title', 'artist', 'license', 'licenseUrl', 'sourceUrl', 'downloadUrl', 'mirrorUrl', 'fetch', 'attribution', 'durationSec', 'bpm', 'ai', 'sha256', 'bytes', 'verifiedOn', 'verifiedBy']
 
+const MIRROR_PREFIX = '/erickson-devin/thehype/releases/download/'
 const isStr = (v) => typeof v === 'string' && v.trim() !== ''
 const isPosInt = (v) => Number.isInteger(v) && v > 0
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -51,6 +52,12 @@ export function validateManifest(m) {
     const dl = httpsUrl(t.downloadUrl)
     if (!dl) e('downloadUrl must be an https URL')
     else if (dl.hostname === 'files.freemusicarchive.org') e('downloadUrl must not point at files.freemusicarchive.org (hashed, expiring URL)')
+    if ('mirrorUrl' in t && t.mirrorUrl !== null) {
+      const mu = httpsUrl(t.mirrorUrl)
+      if (!mu || mu.hostname !== 'github.com' || !mu.pathname.startsWith(MIRROR_PREFIX) || typeof t.id !== 'string' || !mu.pathname.endsWith('/' + t.id + '.mp3')) {
+        e(`mirrorUrl must be this repo's release asset ${t.id}.mp3`)
+      }
+    }
     if (!isPlainObject(t.fetch)) e('fetch must be an object')
     else {
       for (const k of Object.keys(t.fetch)) if (k !== 'referer') e(`fetch: unknown key "${k}"`)
@@ -124,6 +131,14 @@ export function indexFor(m, { m4a = new Set() } = {}) {
 
 export function fetchOptionsFor(track) {
   return { redirect: 'follow', headers: track.fetch?.referer ? { Referer: track.fetch.referer } : {} }
+}
+
+/** Where to try downloading a track, in order: the repo's release-asset mirror (when set), then the origin. */
+export function fetchCandidates(track) {
+  const out = []
+  if (track.mirrorUrl) out.push({ url: track.mirrorUrl, headers: {}, label: 'mirror' })
+  out.push({ url: track.downloadUrl, headers: fetchOptionsFor(track).headers, label: 'origin' })
+  return out
 }
 
 export function serializeManifest(m) {

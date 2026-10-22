@@ -8,6 +8,8 @@
 //   node scripts/music/fetch-music.mjs --encode        also write <id>.m4a (AAC 96k) if ffmpeg is on PATH
 //   node scripts/music/fetch-music.mjs --only shiny-tech,game --out /tmp/music
 //
+// Tracks with a mirrorUrl (this repo's music-v1 release assets) are fetched from the mirror first; the original host is the fallback.
+//
 // Policy: CC0-1.0 / CC-BY-3.0 / CC-BY-4.0 only, and no AI-generated music. Every entry carries
 // "ai": false as an explicit attestation; anything else is refused before a byte is fetched.
 import fs from 'node:fs'
@@ -15,7 +17,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { attributionText, fetchOptionsFor, indexFor, looksLikeMp3, parseArgs, serializeManifest, validateManifest } from './lib.mjs'
+import { attributionText, fetchCandidates, indexFor, looksLikeMp3, parseArgs, serializeManifest, validateManifest } from './lib.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const manifestPath = path.join(ROOT, 'catalogue/music/manifest.json')
@@ -41,13 +43,22 @@ function writeAtomic(file, content) {
 
 const sniff = (buf) => JSON.stringify(buf.subarray(0, 16).toString('latin1')).slice(1, -1)
 
-async function download(t) {
-  const res = await fetch(t.downloadUrl, { ...fetchOptionsFor(t), signal: AbortSignal.timeout(120_000) })
+async function tryFetch({ url, headers }) {
+  const res = await fetch(url, { redirect: 'follow', headers, signal: AbortSignal.timeout(120_000) })
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${res.url}`)
   if ((res.headers.get('content-type') || '').includes('text/html')) throw new Error(`got an HTML page, not audio (from ${res.url})`)
   const buf = Buffer.from(await res.arrayBuffer())
   if (!looksLikeMp3(buf)) throw new Error(`not an MP3 (got "${sniff(buf)}")`)
   return buf
+}
+
+// Returns { buf, label } from the first source that serves an MP3; throws with every reason otherwise.
+async function download(t) {
+  const reasons = []
+  for (const c of fetchCandidates(t)) {
+    try { return { buf: await tryFetch(c), label: c.label } } catch (e) { reasons.push(`${c.label}: ${e.message}`) }
+  }
+  throw new Error(reasons.join('; '))
 }
 
 async function main() {
@@ -89,6 +100,7 @@ async function main() {
     const isPinned = t.sha256 !== null
     try {
       let buf = null
+      let source = ''
       if (fs.existsSync(dest)) {
         const have = fs.readFileSync(dest)
         if (isPinned && sha256(have) === t.sha256) {
@@ -104,7 +116,7 @@ async function main() {
         continue
       }
       const fromDisk = buf !== null
-      if (!buf) buf = await download(t)
+      if (!buf) ({ buf, label: source } = await download(t))
       const hash = sha256(buf)
       if (isPinned && (hash !== t.sha256 || buf.length !== t.bytes)) {
         throw new Error(`sha256 mismatch: expected ${t.sha256}, got ${hash} (bytes ${t.bytes} vs ${buf.length}). The upstream file changed; re-verify the licence, then set sha256/bytes to null and re-run --pin`)
@@ -116,7 +128,7 @@ async function main() {
         dirty++
       }
       verified.push(t)
-      console.log(`ok ${t.id} ${Math.round(buf.length / 1024)} KB ${hash.slice(0, 12)}`)
+      console.log(`ok ${t.id} ${Math.round(buf.length / 1024)} KB ${hash.slice(0, 12)}${source ? ` (${source})` : ''}`)
     } catch (e) {
       failures.push(`${t.id}: ${e.message}`)
     }

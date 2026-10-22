@@ -111,7 +111,9 @@ CC BY 3.0 or CC BY 4.0). **It is not covered by openGym's AGPL.** The audio file
 repository: `scripts/music/fetch-music.mjs` downloads them at build time from each track's
 original host, checks them against the SHA-256 recorded in
 [`catalogue/music/manifest.json`](catalogue/music/manifest.json), and writes the attribution file
-(`attribution.txt`) that ships beside them. The manifest is the source of truth for every title,
+(`attribution.txt`) that ships beside them. The same files are also mirrored as assets of this
+repository's `music-v1` release, byte-identical and verified against the manifest's hashes, with the
+attribution list in the release notes. The manifest is the source of truth for every title,
 artist, licence, source page and attribution string; the list below mirrors it.
 
 Policy: only CC0 and CC BY (no NonCommercial, NoDerivatives or ShareAlike terms), and **no
