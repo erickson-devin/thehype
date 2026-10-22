@@ -104,6 +104,46 @@ language-model assistance. They are not copied from a separate Portuguese
 dataset. Their review status and translation policy are documented alongside
 the source files.
 
+## Workout music
+
+The built-in workout playlist is third-party music under **Creative Commons** licences (CC0 1.0,
+CC BY 3.0 or CC BY 4.0). **It is not covered by openGym's AGPL.** The audio files are not in this
+repository: `scripts/music/fetch-music.mjs` downloads them at build time from each track's
+original host, checks them against the SHA-256 recorded in
+[`catalogue/music/manifest.json`](catalogue/music/manifest.json), and writes the attribution file
+(`attribution.txt`) that ships beside them. The manifest is the source of truth for every title,
+artist, licence, source page and attribution string; the list below mirrors it.
+
+Policy: only CC0 and CC BY (no NonCommercial, NoDerivatives or ShareAlike terms), and **no
+AI-generated music**. Every track is human-made; each manifest entry records `"ai": false` as an
+explicit attestation, and the fetch script refuses any entry without it. Licences were read on
+each track's own page before it was added.
+
+| Track | Artist | Licence | Source |
+|---|---|---|---|
+| Shiny Tech | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Raving Energy (faster) | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Eighties Action | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Ouroboros | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Exit the Premises | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Laserpack | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Motivator | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Breakdown | Kevin MacLeod (incompetech.com) | CC BY 4.0 | incompetech.com |
+| Analog By Nature - Are You Ready | AnalogByNature | CC BY 3.0 | ccmixter.org |
+| Game | Play House | CC0 1.0 | freemusicarchive.org |
+| Propulsion | Musca | CC BY 4.0 | freemusicarchive.org |
+| VANISHING POINT (dance, deep, focused, determined) | Soularflair | CC BY 4.0 | freemusicarchive.org |
+
+Licence texts: <https://creativecommons.org/licenses/by/4.0/>,
+<https://creativecommons.org/licenses/by/3.0/>, <https://creativecommons.org/publicdomain/zero/1.0/>.
+The tracks are used unmodified (an optional build step may re-encode them to AAC, which changes
+the file format only).
+
+**If you redistribute openGym with the music** (a fork, a container image, an app package), the
+CC BY terms apply to you: keep each track's attribution (title, artist, licence and a link to it)
+with the files — `attribution.txt` and this notice — and visible wherever the music is presented.
+The CC0 track needs no attribution; it is credited as a courtesy.
+
 ## Gym check-in QR codes
 
 The gym check-in feature (a saved membership code shown as a QR code on the phone, added by

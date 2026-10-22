@@ -3,6 +3,9 @@
 media/img/
 media/gif/
 
+# Workout music: fetched at build time by scripts/music/fetch-music.mjs, never committed (NOTICE.md)
+catalogue/music/files/
+
 # Runtime data — users, passkeys, per-user state, session secret
 data/
 
