@@ -207,6 +207,10 @@ export const DEF = {
   // synced like any setting. Empty means no music; an older profile without the keys reads as empty.
   musicWebhookUrl: '',
   musicDeepLink: '',
+  // The built-in workout playlist (lib/music-dom.js) for follow-along routines with no webhook or link above.
+  // On by default; the player's music button turns it off for this profile, because on iOS a playing <audio>
+  // pauses whatever music app was already running. Absent reads as on (!== false).
+  builtinMusic: true,
   // The connection banner at the top (components/SyncBanner.jsx, #369/#330). Off hides it; a
   // stuck sync then shows as a dot on Home instead. Defaults on; an older profile without the
   // key reads as on (`!== false`).

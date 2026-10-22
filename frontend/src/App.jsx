@@ -17,6 +17,8 @@ import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { MOBILE } from './lib/mobile.js'
+import { isAutoRoutine } from './lib/interval-plan.js'
+import { loadBuiltinPlaylist } from './lib/music-dom.js'
 import { exitWorkoutEdit, startFlow } from './sheets.jsx'
 import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
@@ -80,6 +82,10 @@ function Shell() {
   // Android app: "Vibrate when the phone is on silent" sends the end-of-rest buzz through the
   // native side as an alarm (#375). buzzAsAlarm answers false off Android, so iOS buzzes as before.
   useEffect(() => { setAlarmBuzzer(MOBILE && S.vibrate !== false && S.vibrateOnSilent ? buzzAsAlarm : null) }, [S.vibrate, S.vibrateOnSilent])
+  // The index (a few KB) is fetched ahead so the Start tap of a follow-along routine finds it loaded: audio can
+  // only start inside that tap (iOS). An instance without music answers 404 and nothing plays.
+  const hasAuto = !!S.routines?.some(isAutoRoutine)
+  useEffect(() => { if (hasAuto) loadBuiltinPlaylist() }, [hasAuto])
   const isGuest = useStore(s => s.isGuest())
   const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes

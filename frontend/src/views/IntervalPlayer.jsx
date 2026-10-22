@@ -14,6 +14,10 @@ import { drawHype, hypeEventsFor, hypeMarks, initHype } from '../lib/hype-lines.
 import { awayDecision, elapsedOf, endedWork, pauseClock, positionAt, resumeClock, skipBlock, startClock } from '../lib/interval-schedule.js'
 import { bindMediaActions, mediaMetadataFor, positionStateFor, publishMedia } from '../lib/media-session.js'
 import { onAppActive } from '../lib/mobile.js'
+import { musicPlan } from '../lib/auto-music.js'
+import { appBase } from '../lib/app-base.js'
+import { musicSource, nowPlayingLine } from '../lib/music-player.js'
+import { builtinPlaylist, loadBuiltinPlaylist, musicState, nextTrack, onMusicChange, pauseMusic, resumeMusic, startBuiltinMusic, stopMusic } from '../lib/music-dom.js'
 import Icon from '../components/Icon.jsx'
 
 const mmss = sec => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
@@ -53,6 +57,8 @@ export default function IntervalPlayer() {
   const [paused, setPaused] = useState(false)
   const [muted, setMuted] = useState(false)
   const [finished, setFinished] = useState(false)
+  const [music, setMusic] = useState(musicState)
+  useEffect(() => { loadBuiltinPlaylist(); return onMusicChange(() => setMusic(musicState())) }, [])
 
   // The clock is a wall-clock origin plus paused spans (lib/interval-schedule.js), not a count of
   // ticks: a page that was throttled or frozen (a locked screen) lands in the right block, and
@@ -126,6 +132,7 @@ export default function IntervalPlayer() {
     clock.current = paused ? resumeClock(clock.current, now) : pauseClock(clock.current, now)
     if (paused) lastTickAt.current = now
     setPaused(p => !p)
+    if (paused) resumeMusic(); else pauseMusic()   // also the lock-screen play/pause
   }
 
   // The countdown. Runs from the clock, so there is nothing to re-arm per block.
@@ -173,7 +180,7 @@ export default function IntervalPlayer() {
 
   // Best effort at mount (the tap that opened the player may still count as a gesture); Pause
   // unlocks again, inside a tap that certainly does.
-  useEffect(() => { unlock(sound); return stopSpeaking }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { unlock(sound); return () => { stopSpeaking(); stopMusic() } }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // What is said when a block begins. Once per block: pausing and resuming do not repeat it.
   // A Work block opens with a high beep and a spoken "Go!", the cue to move, so nobody has to
@@ -212,6 +219,13 @@ export default function IntervalPlayer() {
       <h3>{t('Workout complete')}</h3>
       <button className="btn primary" onClick={() => finishWorkout()}>{t('Finish workout')}</button>
     </div>
+  }
+
+  const musicRow = musicSource({ plan: musicPlan(useStore.getState().S), auto: true, enabled: true, hasPlaylist: !!builtinPlaylist()?.length }) === 'builtin'
+  const toggleMusic = () => {
+    if (music.playing) { pauseMusic({ user: true }); update(s => { s.builtinMusic = false }); return }
+    update(s => { s.builtinMusic = true })
+    if (music.started && !music.failed && !music.blocked) resumeMusic({ user: true }); else startBuiltinMusic()   // inside this tap
   }
 
   const resting = block?.kind === 'rest'
@@ -259,10 +273,19 @@ export default function IntervalPlayer() {
           // Stop the clock first: the finish sheet can be cancelled, and a running block must not
           // tick a set or announce a rest behind it.
           stopSpeaking()
+          pauseMusic()
           if (!paused) { clock.current = pauseClock(clock.current, Date.now()); setPaused(true) }
           finishWorkout()
         }}>{t('End workout')}</button>
       </div>
+      {musicRow && <div className="ip-music" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button className="iconbtn" onClick={toggleMusic} aria-pressed={music.playing} aria-label={music.playing ? t('Music off') : t('Music on')}>
+          <Icon name="headphones" style={{ opacity: music.playing ? 1 : 0.45 }} /></button>
+        {/* CC BY: title, artist and licence on screen; the full attribution list (with licence links) one tap away */}
+        <a className="small dim" style={{ flex: 1, textAlign: 'start' }} href={appBase() + 'workout-music/attribution.txt'} target="_blank" rel="noopener noreferrer">
+          {music.track ? nowPlayingLine(music.track, t) : t('Workout music')}</a>
+        {music.started && !music.failed && <button className="iconbtn" onClick={nextTrack} aria-label={t('Next track')}><Icon name="skipForward" /></button>}
+      </div>}
     </div>
   </div>
 }

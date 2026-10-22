@@ -2809,7 +2809,7 @@ export function beginWorkout(routineIds, bw) {
   // its first beep; a manual session wakes it at the set tick that leads to a timer (Workout.jsx),
   // and waking it for nothing is avoided: under iOS's 'playback' session it pauses other audio (sound.js).
   if (auto) unlock(st.sound)
-  startWorkoutMusic(st)
+  startWorkoutMusic(st, { auto })
   navToWorkout()
 }
 

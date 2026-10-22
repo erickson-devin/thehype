@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./sound.js', () => ({ beep: vi.fn() }))
 import { beep } from './sound.js'
-import { countdownBeep, speak, stopSpeaking } from './interval-audio.js'
+import { countdownBeep, onSpeech, speak, stopSpeaking } from './interval-audio.js'
 
 class Utterance { constructor(text) { this.text = text } }
 
@@ -68,5 +68,79 @@ describe('stopSpeaking', () => {
   it('never throws when cancel does', () => {
     vi.stubGlobal('window', { speechSynthesis: { cancel: () => { throw new Error('boom') } } })
     expect(() => stopSpeaking()).not.toThrow()
+  })
+})
+
+describe('onSpeech', () => {
+  const setup = () => {
+    const engine = { cancel: vi.fn(), speak: vi.fn() }
+    vi.stubGlobal('window', { speechSynthesis: engine })
+    vi.stubGlobal('SpeechSynthesisUtterance', Utterance)
+    return engine
+  }
+  let offs = []
+  const listen = fn => { const off = onSpeech(fn); offs.push(off); return off }
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { offs.forEach(o => o()); offs = []; vi.useRealTimers() })
+
+  it('says true before the engine speaks, false when the utterance ends', () => {
+    const engine = setup()
+    const calls = []
+    listen(on => calls.push(on))
+    engine.speak.mockImplementation(() => calls.push('engine'))
+    speak('Go!')
+    expect(calls).toEqual([true, 'engine'])
+    engine.speak.mock.calls[0][0].onend()
+    expect(calls).toEqual([true, 'engine', false])
+  })
+  it('ignores the late error of a cut-off utterance', () => {
+    const engine = setup()
+    const fn = vi.fn()
+    listen(fn)
+    speak('A'); speak('B')
+    const [a, b] = engine.speak.mock.calls.map(c => c[0])
+    fn.mockClear()
+    a.onerror()
+    expect(fn).not.toHaveBeenCalledWith(false)
+    b.onend()
+    expect(fn).toHaveBeenCalledWith(false)
+  })
+  it('stopSpeaking says false', () => {
+    setup()
+    const fn = vi.fn()
+    listen(fn)
+    stopSpeaking()
+    expect(fn).toHaveBeenCalledWith(false)
+  })
+  it('falls back to a timer when onend never fires, once', () => {
+    setup()
+    const fn = vi.fn()
+    listen(fn)
+    speak('Hello')
+    fn.mockClear()
+    vi.advanceTimersByTime(2000 + 5 * 80 - 1)
+    expect(fn).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(fn.mock.calls).toEqual([[false]])
+    vi.advanceTimersByTime(10_000)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+  it('a throwing listener does not stop the speech', () => {
+    const engine = setup()
+    listen(() => { throw new Error('boom') })
+    expect(() => speak('Go!')).not.toThrow()
+    expect(engine.speak).toHaveBeenCalledTimes(1)
+  })
+  it('stops calling after unsubscribe', () => {
+    setup()
+    const fn = vi.fn()
+    const off = listen(fn)
+    off()
+    speak('Go!')
+    expect(fn).not.toHaveBeenCalled()
+  })
+  it('works without a window', () => {
+    expect(typeof onSpeech(() => {})).toBe('function')
+    expect(() => speak('Go!')).not.toThrow()
   })
 })

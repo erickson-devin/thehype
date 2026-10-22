@@ -9,8 +9,10 @@
 // What happens on Start (startWorkoutMusic, called from sheets.jsx beginWorkout):
 //   a webhook is set        → one silent no-cors POST to it; the deep link is left alone
 //   no webhook, a deep link → opens the music app (an https link in a new tab, so the app stays)
-//   neither                 → nothing; the timer carries on
+//   no webhook/link, follow-along routine → the built-in playlist (music-dom.js), unless S.builtinMusic === false
+//   otherwise               → nothing; the timer carries on
 import { MOBILE } from './mobile.js'
+import { startBuiltinMusic } from './music-dom.js'
 
 export const MUSIC_FIELD_MAX = 500
 
@@ -86,11 +88,15 @@ export function openLink(url, { win = globalThis.window, native = MOBILE } = {})
 /**
  * Starts the music for the profile `S` (the store's state). `fetchFn` and `open` are injectable for
  * tests. Never throws and never waits: the workout starts whatever the music does. Returns what it
- * did ('webhook', 'link') or null.
+ * did ('webhook', 'link', 'builtin') or null. `auto`: the routine is a follow-along one.
  */
-export function startWorkoutMusic(S, { fetchFn = globalThis.fetch, open = url => openLink(url), ctx } = {}) {
+export function startWorkoutMusic(S, { fetchFn = globalThis.fetch, open = url => openLink(url), ctx, auto = false, builtin = () => startBuiltinMusic() } = {}) {
   const plan = musicPlan(S, ctx)
-  if (!plan) return null
+  if (!plan) {
+    // a profile webhook or link is a global override; the built-in playlist is the default for automated routines only
+    if (!auto || S?.builtinMusic === false) return null
+    try { return builtin() ? 'builtin' : null } catch { return null }
+  }
   try {
     if (plan.kind === 'webhook') {
       // POST is what Home Assistant's webhook trigger accepts by default (GET only when enabled). With

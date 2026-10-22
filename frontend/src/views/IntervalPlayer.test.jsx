@@ -20,11 +20,19 @@ vi.mock('../store/useStore.js', () => {
   return { useStore }
 })
 vi.mock('../lib/interval-audio.js', () => ({ speak: vi.fn(), stopSpeaking: vi.fn(), countdownBeep: vi.fn() }))
+vi.mock('../lib/music-dom.js', () => ({
+  builtinPlaylist: () => mocks.playlist,
+  musicState: () => mocks.music,
+  loadBuiltinPlaylist: vi.fn(() => Promise.resolve(mocks.playlist || [])),
+  onMusicChange: vi.fn(() => () => {}),
+  pauseMusic: vi.fn(), resumeMusic: vi.fn(), nextTrack: vi.fn(), startBuiltinMusic: vi.fn(), stopMusic: vi.fn(),
+}))
 vi.mock('../lib/sound.js', () => ({ unlock: vi.fn() }))
 vi.mock('../sheets.jsx', () => ({ finishWorkout: vi.fn() }))
 
 import { speak, countdownBeep } from '../lib/interval-audio.js'
 import { unlock } from '../lib/sound.js'
+import { pauseMusic, resumeMusic, startBuiltinMusic, stopMusic } from '../lib/music-dom.js'
 import { finishWorkout } from '../sheets.jsx'
 import { getLang } from '../lib/i18n.js'
 import { HYPE_LINES } from '../lib/hype-lines.js'
@@ -34,6 +42,8 @@ let host, root
 beforeEach(() => {
   vi.useFakeTimers()
   vi.clearAllMocks()
+  mocks.playlist = null
+  mocks.music = { started: false, playing: false, track: null }
   mocks.S = {
     sound: true,
     routines: [{ id: 'r1', auto: true, autoWorkSec: 10, autoRestSec: 5, ex: [] }],
@@ -279,5 +289,63 @@ describe('media session', () => {
     const names = ['play', 'pause', 'nexttrack']
     const last = n => ms.setActionHandler.mock.calls.filter(c => c[0] === n).at(-1)
     names.forEach(n => expect(last(n) ? last(n)[1] : null).toBeNull())
+  })
+})
+
+describe('workout music', () => {
+  const TRACK = { title: 'Laserpack', artist: 'Kevin MacLeod', license: 'CC-BY-4.0' }
+  const withMusic = (music) => { mocks.playlist = [TRACK]; if (music) mocks.music = music; remount() }
+  const musicBtn = () => host.querySelector('.ip-music button[aria-pressed]')
+
+  it('shows no music row without a playlist', () => {
+    expect(host.querySelector('.ip-music')).toBeNull()
+  })
+  it('shows the track with its licence while playing', () => {
+    withMusic({ started: true, playing: true, track: TRACK })
+    expect(host.querySelector('.ip-music').textContent).toContain('Now playing: Laserpack — Kevin MacLeod (CC BY 4.0)')
+  })
+  it('shows no row when the profile has its own music link', () => {
+    mocks.S.musicDeepLink = 'spotify:playlist:a'
+    withMusic()
+    expect(host.querySelector('.ip-music')).toBeNull()
+  })
+  it('pauses and resumes the music with the clock', () => {
+    act(() => { button('Pause').click() })
+    expect(pauseMusic).toHaveBeenCalled()
+    act(() => { button('Resume').click() })
+    expect(resumeMusic).toHaveBeenCalled()
+  })
+  it('End workout pauses the music, and leaving the player stops it', () => {
+    act(() => { button('End workout').click() })
+    expect(pauseMusic).toHaveBeenCalled()
+    act(() => root.unmount())
+    expect(stopMusic).toHaveBeenCalled()
+    root = createRoot(host)
+  })
+  it('the music button turns it off for the profile while playing', () => {
+    withMusic({ started: true, playing: true, track: TRACK })
+    act(() => { musicBtn().click() })
+    expect(pauseMusic).toHaveBeenCalledWith({ user: true })
+    expect(mocks.S.builtinMusic).toBe(false)
+  })
+  it('the music button starts it inside the tap when it is not running', () => {
+    withMusic()
+    act(() => { musicBtn().click() })
+    expect(startBuiltinMusic).toHaveBeenCalled()
+    expect(mocks.S.builtinMusic).toBe(true)
+  })
+  it('the lock-screen pause and play drive the music too', () => {
+    const ms = { setActionHandler: vi.fn(), setPositionState: vi.fn(), metadata: null, playbackState: 'none' }
+    Object.defineProperty(navigator, 'mediaSession', { value: ms, configurable: true })
+    globalThis.MediaMetadata = class { constructor(m) { Object.assign(this, m) } }
+    try {
+      remount()
+      const h = n => ms.setActionHandler.mock.calls.filter(c => c[0] === n).at(-1)[1]
+      pauseMusic.mockClear()
+      act(() => { h('pause')() })
+      expect(pauseMusic).toHaveBeenCalled()
+      act(() => { h('play')() })
+      expect(resumeMusic).toHaveBeenCalled()
+    } finally { delete navigator.mediaSession; delete globalThis.MediaMetadata }
   })
 })

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+vi.mock('./music-dom.js', () => ({ startBuiltinMusic: vi.fn(() => false), builtinPlaylist: vi.fn(() => null) }))
 import { cleanDeepLink, cleanWebhookUrl, musicPlan, openLink, startWorkoutMusic, webhookBlockedReason, MUSIC_FIELD_MAX } from './auto-music.js'
 
 describe('cleanWebhookUrl', () => {
@@ -134,5 +135,40 @@ describe('musicPlan falls back', () => {
   })
   it('is nothing when blocked and there is no link', () => {
     expect(musicPlan({ musicWebhookUrl: hook }, { secureOrigin: true })).toBeNull()
+  })
+})
+
+describe('startWorkoutMusic: the built-in playlist', () => {
+  const hook = 'http://192.168.1.20:5000/start-music', link = 'spotify:playlist:abc'
+  it('plays it for a follow-along routine with no webhook or link', () => {
+    const builtin = vi.fn(() => true)
+    expect(startWorkoutMusic({}, { auto: true, builtin })).toBe('builtin')
+    expect(builtin).toHaveBeenCalledTimes(1)
+  })
+  it('reports nothing when there is nothing to play', () => {
+    expect(startWorkoutMusic({}, { auto: true, builtin: vi.fn(() => false) })).toBeNull()
+  })
+  it('leaves it alone when a link or webhook is set', () => {
+    const builtin = vi.fn(() => true), open = vi.fn(), fetchFn = vi.fn(() => Promise.resolve())
+    expect(startWorkoutMusic({ musicDeepLink: link }, { auto: true, builtin, open })).toBe('link')
+    expect(startWorkoutMusic({ musicWebhookUrl: hook }, { auto: true, builtin, fetchFn })).toBe('webhook')
+    expect(builtin).not.toHaveBeenCalled()
+  })
+  it('is for follow-along routines only', () => {
+    const builtin = vi.fn(() => true)
+    expect(startWorkoutMusic({}, { auto: false, builtin })).toBeNull()
+    expect(builtin).not.toHaveBeenCalled()
+  })
+  it('is off when the profile turned it off', () => {
+    const builtin = vi.fn(() => true)
+    expect(startWorkoutMusic({ builtinMusic: false }, { auto: true, builtin })).toBeNull()
+    expect(builtin).not.toHaveBeenCalled()
+  })
+  it('takes over from a webhook that cannot fire from here', () => {
+    const builtin = vi.fn(() => true)
+    expect(startWorkoutMusic({ musicWebhookUrl: 'http://192.168.1.20/x' }, { auto: true, builtin, ctx: { secureOrigin: true } })).toBe('builtin')
+  })
+  it('never throws when the player does', () => {
+    expect(startWorkoutMusic({}, { auto: true, builtin: () => { throw new Error('no audio') } })).toBeNull()
   })
 })
