@@ -18,6 +18,7 @@ import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { MOBILE } from './lib/mobile.js'
 import { detectTv, applyTvMode } from './lib/tv.js'
+import { primeSpeech } from './lib/interval-audio.js'
 import { isAutoRoutine } from './lib/interval-plan.js'
 import { loadBuiltinPlaylist } from './lib/music-dom.js'
 import { exitWorkoutEdit, startFlow } from './sheets.jsx'
@@ -270,6 +271,8 @@ export default function App() {
   useEffect(() => { boot() }, [boot])
   // Android TV: asked once; the layout class and the remote's focus handling follow the answer.
   useEffect(() => { detectTv().then(on => { applyTvMode(on); useUI.setState({ tv: on }) }) }, [])
+  // The TV's WebView has no speechSynthesis: ask the system speech engine once, so the cues and Settings know.
+  useEffect(() => { if (MOBILE) primeSpeech() }, [])
   // Android system back — sheet, then page, then press-again-to-exit (see lib/back.js)
   useEffect(() => {
     let stop = null, gone = false

@@ -80,7 +80,9 @@ export function musicPlan(S, ctx = musicContext()) {
  * Opens a music link. In a browser an https link goes to a new tab, so the app (and its running
  * timer) is not replaced; an app-scheme link, or any link inside the native shell, navigates.
  */
-export function openLink(url, { win = globalThis.window, native = MOBILE } = {}) {
+export function openLink(url, { win = globalThis.window, native = MOBILE, tv = !!globalThis.document?.documentElement?.hasAttribute('data-tv') } = {}) {
+  // html[data-tv] is set by lib/tv.js; the TV has no other app to hand over to: any link would navigate the WebView, and the workout, away
+  if (tv) return
   if (!native && /^https?:/i.test(url)) win.open(url, '_blank', 'noopener,noreferrer')
   else win.location.href = url
 }

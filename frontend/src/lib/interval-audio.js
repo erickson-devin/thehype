@@ -1,10 +1,16 @@
-// Audio cues for the follow-along player: spoken announcements (Web Speech API) and the 3-2-1
+// Audio cues for the follow-along player: spoken announcements (Web Speech API, or the system
+// text-to-speech through lib/native-tts.js where the WebView has none, as on Android TV) and the 3-2-1
 // countdown beeps, which go through lib/sound.js so they get its iOS handling. No audio files.
 // Which voice speaks (and how fast) is chosen by lib/voice.js.
 import { beep } from './sound.js'
 import { pickVoice, speechTuning } from './voice.js'
+import { probeNativeSpeech, nativeSpeak, nativeStop } from './native-tts.js'
 
 const synth = () => (typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null)
+const webSpeech = () => !!synth() && typeof SpeechSynthesisUtterance !== 'undefined'
+// The native engine, once primeSpeech() has heard that it is there. Only used where web speech is missing.
+let nativeInfo = null, primed = false
+const nativeSpeech = () => !webSpeech() && !!nativeInfo
 
 const speechListeners = new Set()
 let speechSeq = 0
@@ -18,6 +24,7 @@ let voiceCache = [], hookedOn = null, voicesVer = 0
 const voiceListeners = new Set()
 const bump = () => { voicesVer++; for (const fn of voiceListeners) { try { fn() } catch { /* */ } } }
 export function availableVoices(s = synth()) {
+  if (!s && nativeSpeech()) return nativeInfo.voices
   if (!s || typeof s.getVoices !== 'function') return []
   if (hookedOn !== s) {
     hookedOn = s; voiceCache = []
@@ -27,7 +34,13 @@ export function availableVoices(s = synth()) {
   try { const list = s.getVoices(); if (list && list.length) voiceCache = list } catch { /* */ }
   return voiceCache
 }
-export const speechSupported = () => !!synth() && typeof SpeechSynthesisUtterance !== 'undefined'
+export const speechSupported = () => webSpeech() || !!nativeInfo
+/** Asks, once at boot, whether the system speech engine is there (a no-op where web speech exists). Settings and speak() follow the answer. */
+export function primeSpeech() {
+  if (primed || webSpeech()) return
+  primed = true
+  probeNativeSpeech().then(r => { if (r?.available) { nativeInfo = r; bump() } }).catch(() => {})
+}
 export const onVoicesChanged = fn => { voiceListeners.add(fn); return () => { voiceListeners.delete(fn) } }
 export const voicesVersion = () => voicesVer
 // This phone's chosen voice (voices differ per device, so never synced: not in gym_state_v1).
@@ -40,6 +53,7 @@ export function saveVoiceURI(uri) {
 
 /** Say `text` now, cutting off anything still being spoken. Silent where speech is unavailable. */
 export function speak(text, lang, opts = {}) {
+  if (text && nativeSpeech()) return speakNative(text, lang, opts)
   const s = synth()
   if (!s || !text || typeof SpeechSynthesisUtterance === 'undefined') return
   try {
@@ -61,11 +75,25 @@ export function speak(text, lang, opts = {}) {
     s.speak(u)
   } catch { tell(false) /* speech is a nicety, never a failure */ }
 }
+function speakNative(text, lang, opts) {
+  try {
+    // As below: the sequence number keeps a flushed earlier utterance's 'interrupted' from un-ducking this one.
+    const my = ++speechSeq
+    let over = false
+    const end = () => { if (over) return; over = true; if (my === speechSeq) tell(false) }
+    const voice = pickVoice(availableVoices(), lang, 'voiceURI' in opts ? opts.voiceURI : savedVoiceURI())
+    const { rate, pitch } = speechTuning()
+    setTimeout(end, 2000 + text.length * 80)   // an engine that never answers
+    tell(true)
+    nativeSpeak({ text, lang: voice?.lang || lang, voiceURI: voice?.voiceURI, rate, pitch }).then(end, end)
+  } catch { tell(false) }
+}
 /** Settings' preview: says `text` in the voice given (null = the automatic pick). Call from a tap. */
 export const previewVoice = (voiceURI, lang, text) => speak(text, lang, { voiceURI: voiceURI || null })
 export function stopSpeaking() {
   speechSeq++
   try { synth()?.cancel() } catch { /* */ }
+  if (nativeSpeech()) nativeStop()
   tell(false)
 }
 

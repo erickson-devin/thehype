@@ -392,6 +392,7 @@ export default function Settings({ page = null, find = null, via = null }) {
 
   /* ---------------- what the pages and the search need to know about this device ---------------- */
   const canVibrate = vibrateSupported()
+  useSyncExternalStore(onVoicesChanged, voicesVersion)   // the TV's speech engine answers after boot
   const ctx = {
     user, mobile: MOBILE, android, demo: DEMO, wakeOK, hasMedia, pwOn, webauthn: webauthnOK(),
     speech: speechSupported(),

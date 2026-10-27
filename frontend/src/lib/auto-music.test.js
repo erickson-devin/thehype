@@ -94,6 +94,13 @@ describe('openLink', () => {
     expect(win.location.href).toBe('https://open.spotify.com/playlist/x')
     expect(win.open).not.toHaveBeenCalled()
   })
+  it('does nothing on a TV: the WebView is never sent away', () => {
+    const win = fake()
+    openLink('spotify:playlist:x', { win, native: true, tv: true })
+    openLink('https://open.spotify.com/playlist/x', { win, native: true, tv: true })
+    expect(win.location.href).toBe('')
+    expect(win.open).not.toHaveBeenCalled()
+  })
 })
 
 describe('webhookBlockedReason', () => {

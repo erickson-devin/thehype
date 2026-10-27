@@ -35,7 +35,9 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BackupFolderPlugin.class);
         registerPlugin(SystemBarsPlugin.class);
         registerPlugin(TvModePlugin.class);
+        registerPlugin(NativeSpeechPlugin.class);
         super.onCreate(savedInstanceState);
+        if (bridge != null) bridge.setWebViewClient(new MusicProxyClient(bridge));
         passSystemBarsToPage();
     }
 

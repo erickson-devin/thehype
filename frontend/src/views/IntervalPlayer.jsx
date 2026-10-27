@@ -19,9 +19,8 @@ import { awayDecision, elapsedOf, endedWork, pauseClock, positionAt, resumeClock
 import { bindMediaActions, mediaMetadataFor, positionStateFor, publishMedia } from '../lib/media-session.js'
 import { onAppActive } from '../lib/mobile.js'
 import { musicPlan } from '../lib/auto-music.js'
-import { appBase } from '../lib/app-base.js'
 import { musicSource, nowPlayingLine } from '../lib/music-player.js'
-import { builtinPlaylist, loadBuiltinPlaylist, musicState, nextTrack, onMusicChange, pauseMusic, resumeMusic, startBuiltinMusic, stopMusic } from '../lib/music-dom.js'
+import { builtinPlaylist, loadBuiltinPlaylist, musicState, nextTrack, onMusicChange, pauseMusic, resumeMusic, serverRoot, startBuiltinMusic, stopMusic } from '../lib/music-dom.js'
 import Icon from '../components/Icon.jsx'
 
 const mmss = sec => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
@@ -346,6 +345,8 @@ export default function IntervalPlayer() {
         {nameEl}
         {picture && countEl}
         {upNextEl}
+        {/* CC BY: title, artist and licence on screen (no link: nothing to click on a TV) */}
+        {music.track && <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>{nowPlayingLine(music.track, t)}</div>}
         <div className="ip-hint">{t('OK Pause · ▶ Skip · ▼ More · Back End')}</div>
       </div>
     </div>
@@ -379,7 +380,7 @@ export default function IntervalPlayer() {
         <button className="iconbtn" onClick={toggleMusic} aria-pressed={music.playing} aria-label={music.playing ? t('Music off') : t('Music on')}>
           <Icon name="headphones" style={{ opacity: music.playing ? 1 : 0.45 }} /></button>
         {/* CC BY: title, artist and licence on screen; the full attribution list (with licence links) one tap away */}
-        <a className="small dim" style={{ flex: 1, textAlign: 'start' }} href={appBase() + 'workout-music/attribution.txt'} target="_blank" rel="noopener noreferrer">
+        <a className="small dim" style={{ flex: 1, textAlign: 'start' }} href={serverRoot() + 'workout-music/attribution.txt'} target="_blank" rel="noopener noreferrer">
           {music.track ? nowPlayingLine(music.track, t) : t('Workout music')}</a>
         {music.started && !music.failed && <button className="iconbtn" onClick={nextTrack} aria-label={t('Next track')}><Icon name="skipForward" /></button>}
       </div>}

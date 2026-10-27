@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ duck: null }))
+const h = vi.hoisted(() => ({ duck: null, mobile: false }))
 vi.mock('./interval-audio.js', () => ({ onSpeech: vi.fn(fn => { h.duck = fn; return () => {} }) }))
+vi.mock('./mobile.js', () => ({ get MOBILE() { return h.mobile } }))
 vi.mock('./app-base.js', () => ({ appBase: () => '/gym/' }))
 
 import {
-  _audioForTests, _resetForTests, builtinPlaylist, loadBuiltinPlaylist, musicState, onMusicChange,
-  pauseMusic, resumeMusic, setMusicVolume, startBuiltinMusic, stopMusic,
+  _audioForTests, _resetForTests, builtinPlaylist, loadBuiltinPlaylist, musicRoot, musicState, onMusicChange,
+  pauseMusic, resumeMusic, setMusicBase, setMusicVolume, startBuiltinMusic, stopMusic,
 } from './music-dom.js'
 
 const mk = id => ({ id, title: id.toUpperCase(), artist: 'X', license: 'CC0-1.0', licenseUrl: '', attribution: '', durationSec: 100, file: id + '.mp3' })
@@ -20,9 +21,78 @@ const srcEnd = () => _audioForTests().getAttribute('src')
 beforeEach(() => {
   HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve())
   HTMLMediaElement.prototype.pause = vi.fn()
+  h.mobile = false
   _resetForTests()
 })
 afterEach(() => { vi.useRealTimers() })
+
+describe('the paired server', () => {
+  const SERVER = 'http://192.168.1.20:5000/'
+  it('serves the index and the tracks from the paired base on the mobile build', async () => {
+    h.mobile = true
+    setMusicBase('http://192.168.1.20:5000')
+    const f = okFetch(index)
+    await loadBuiltinPlaylist({ fetchFn: f })
+    expect(f.mock.calls[0][0]).toBe(SERVER + 'workout-music/index.json')
+    startBuiltinMusic({ shuffle: false })
+    expect(srcEnd()).toBe(SERVER + 'workout-music/a.mp3')
+  })
+  it('ignores the base off the mobile build', async () => {
+    setMusicBase(SERVER)
+    const f = okFetch(index)
+    await loadBuiltinPlaylist({ fetchFn: f })
+    expect(f.mock.calls[0][0]).toBe('/gym/workout-music/index.json')
+  })
+  it('drops the cache and reloads when the base changes, telling subscribers', async () => {
+    h.mobile = true
+    const f = okFetch(index)
+    await loadBuiltinPlaylist({ fetchFn: () => Promise.resolve({ ok: false }) })
+    expect(builtinPlaylist()).toEqual([])
+    const cb = vi.fn()
+    onMusicChange(cb)
+    globalThis.fetch = f
+    setMusicBase(SERVER)
+    expect(builtinPlaylist()).toBeNull()
+    await vi.waitFor(() => expect(builtinPlaylist()).toHaveLength(3))
+    expect(f.mock.calls[0][0]).toBe(SERVER + 'workout-music/index.json')
+    expect(cb).toHaveBeenCalled()
+  })
+  it('goes back to the app base when the base is cleared', async () => {
+    h.mobile = true
+    setMusicBase(SERVER)
+    await loadBuiltinPlaylist({ fetchFn: okFetch(index) })
+    const f = globalThis.fetch = okFetch(index)
+    setMusicBase('')   // the reload is its own
+    await vi.waitFor(() => expect(f).toHaveBeenCalled())
+    expect(f.mock.calls[0][0]).toBe('/gym/workout-music/index.json')
+  })
+})
+
+describe('a plain-http server on Android', () => {
+  const droid = p => { globalThis.Capacitor = { getPlatform: () => p } }
+  afterEach(() => { delete globalThis.Capacitor })
+  it('streams the tracks through the app origin, the index from the real base', async () => {
+    h.mobile = true; droid('android')
+    setMusicBase('http://10.10.10.15:8080/')
+    const f = okFetch(index)
+    await loadBuiltinPlaylist({ fetchFn: f })
+    expect(f.mock.calls[0][0]).toBe('http://10.10.10.15:8080/workout-music/index.json')
+    startBuiltinMusic({ shuffle: false })
+    expect(srcEnd()).toBe(location.origin + '/_hype_music/' + encodeURIComponent('http://10.10.10.15:8080') + '/workout-music/a.mp3')
+  })
+  it('plays an https server directly', () => {
+    h.mobile = true; droid('android')
+    setMusicBase('https://gym.example.com')
+    expect(musicRoot()).toBe('https://gym.example.com/')
+  })
+  it('plays directly on iOS and with no Capacitor', () => {
+    h.mobile = true; droid('ios')
+    setMusicBase('http://10.10.10.15:8080')
+    expect(musicRoot()).toBe('http://10.10.10.15:8080/')
+    delete globalThis.Capacitor
+    expect(musicRoot()).toBe('http://10.10.10.15:8080/')
+  })
+})
 
 describe('loadBuiltinPlaylist', () => {
   it('asks for the index under the app base, once', async () => {

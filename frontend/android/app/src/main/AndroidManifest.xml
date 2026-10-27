@@ -123,8 +123,12 @@
     <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
     <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
 
-    <!-- Whether the Health Connect app is there, on Android 13 and lower. -->
+    <!-- Whether the Health Connect app is there, on Android 13 and lower, and the speech engine. -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <!-- The text-to-speech engine the TV speaks its cues through (package visibility, targetSdk 35). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
     </queries>
 </manifest>

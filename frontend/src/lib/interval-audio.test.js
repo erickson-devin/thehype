@@ -2,8 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./sound.js', () => ({ beep: vi.fn() }))
+vi.mock('./native-tts.js', () => ({ probeNativeSpeech: vi.fn(), nativeSpeak: vi.fn(), nativeStop: vi.fn() }))
+import { probeNativeSpeech, nativeSpeak, nativeStop } from './native-tts.js'
 import { beep } from './sound.js'
-import { countdownBeep, onSpeech, speak, stopSpeaking, onVoicesChanged, voicesVersion, savedVoiceURI, saveVoiceURI, previewVoice } from './interval-audio.js'
+import { countdownBeep, onSpeech, speak, stopSpeaking, onVoicesChanged, voicesVersion, savedVoiceURI, saveVoiceURI, previewVoice, speechSupported, primeSpeech, availableVoices } from './interval-audio.js'
 
 class Utterance { constructor(text) { this.text = text } }
 
@@ -253,5 +255,66 @@ describe('speak: voice selection', () => {
     speak('Go!', 'en')
     expect(fn).toHaveBeenNthCalledWith(1, true)
     off()
+  })
+})
+
+// The TV's WebView has no speechSynthesis: the system engine speaks, once primeSpeech() has heard it is there.
+// (Module state: primed once, so these run in order after the web-speech tests above.)
+describe('native backend', () => {
+  const VOICES = [
+    { name: 'en-us-x-iol-network', voiceURI: 'en-us-x-iol-network', lang: 'en-US', localService: false, default: true },
+    { name: 'en-us-x-iol-local', voiceURI: 'en-us-x-iol-local', lang: 'en-US', localService: true, default: false },
+  ]
+  let offs = []
+  afterEach(() => { offs.forEach(o => o()); offs = []; vi.useRealTimers() })
+  const settle = () => new Promise(r => setTimeout(r, 0))
+
+  it('speech is unsupported until the probe lands, then supported, and the voices change', async () => {
+    probeNativeSpeech.mockResolvedValue({ available: true, voices: VOICES })
+    expect(speechSupported()).toBe(false)
+    const fn = vi.fn()
+    offs.push(onVoicesChanged(fn))
+    const v0 = voicesVersion()
+    primeSpeech()
+    await settle()
+    expect(speechSupported()).toBe(true)
+    expect(voicesVersion()).toBe(v0 + 1)
+    expect(fn).toHaveBeenCalled()
+    expect(availableVoices()).toEqual(VOICES)
+  })
+  it('speaks the picked voice at the tuned rate and ducks around it', async () => {
+    let finish
+    nativeSpeak.mockReturnValue(new Promise(r => { finish = r }))
+    const calls = []
+    offs.push(onSpeech(on => calls.push(on)))
+    speak('Go!', 'en')
+    expect(calls).toEqual([true])
+    expect(nativeSpeak).toHaveBeenCalledWith({ text: 'Go!', lang: 'en-US', voiceURI: 'en-us-x-iol-local', rate: 0.95, pitch: 1 })
+    finish('done'); await settle()
+    expect(calls).toEqual([true, false])
+  })
+  it('a stale interrupted result does not end a newer utterance', async () => {
+    const done = []
+    nativeSpeak.mockImplementation(() => new Promise(r => done.push(r)))
+    const fn = vi.fn()
+    offs.push(onSpeech(fn))
+    speak('A', 'en'); speak('B', 'en')
+    fn.mockClear()
+    done[0]('interrupted'); await settle()
+    expect(fn).not.toHaveBeenCalled()
+    done[1]('done'); await settle()
+    expect(fn).toHaveBeenCalledWith(false)
+  })
+  it('previewVoice speaks the chosen voice', () => {
+    nativeSpeak.mockResolvedValue('done')
+    previewVoice('en-us-x-iol-network', 'en', 'Hello')
+    expect(nativeSpeak.mock.calls.at(-1)[0].voiceURI).toBe('en-us-x-iol-network')
+  })
+  it('stopSpeaking stops the engine and says false', () => {
+    const fn = vi.fn()
+    offs.push(onSpeech(fn))
+    stopSpeaking()
+    expect(nativeStop).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith(false)
   })
 })

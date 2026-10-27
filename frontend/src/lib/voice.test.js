@@ -84,6 +84,19 @@ describe('speechTuning', () => {
   })
 })
 
+describe('Android engine voices', () => {
+  const gtts = [
+    V('en-us-x-iol-network', 'en-us-x-iol-network', 'en-US', false, true),
+    V('en-us-x-iol-local', 'en-us-x-iol-local', 'en-US'),
+    V('en-gb-x-gbb-local', 'en-gb-x-gbb-local', 'en-GB'),
+    V('de-de-x-deb-local', 'de-de-x-deb-local', 'de-DE'),
+  ]
+  it('Automatic prefers the on-device voice of the right language, even over the default network one', () => {
+    expect(pickVoice(gtts, 'en-US', null).name).toBe('en-us-x-iol-local')
+    expect(pickVoice(gtts, 'de', null).name).toBe('de-de-x-deb-local')
+  })
+})
+
 describe('voiceLabel / voiceDetail', () => {
   it('trims vendor decoration', () => {
     expect(voiceLabel(chrome[1])).toBe('Zira')
@@ -91,6 +104,11 @@ describe('voiceLabel / voiceDetail', () => {
     expect(voiceLabel(chrome[0])).toBe('US English')
     expect(voiceLabel(SAM_E)).toBe('Samantha (Enhanced)')
     expect(voiceLabel({ name: '', voiceURI: 'x' })).toBe('x')
+  })
+  it('makes an Android engine name readable', () => {
+    expect(voiceLabel(android[2])).toBe('English (US) · sfg')
+    expect(voiceLabel(V('de-de-x-deb-network', 'de-de-x-deb-network', 'de-DE', false))).toBe('German (DE) · deb')
+    expect(voiceLabel(V('en-US-language', 'en-US-language', 'en-US'))).toBe('English (US)')
   })
   it('details language and network need', () => {
     expect(voiceDetail({ lang: 'en_US', localService: false })).toBe('en-US · Needs internet')
