@@ -15,7 +15,7 @@ import { buildIntervals, intervalSettings, nextWork, remainingSec } from '../lib
 import { speak, stopSpeaking, countdownBeep } from '../lib/interval-audio.js'
 import { confirmSheet, finishWorkout, finishWorkoutSheet, menuSheet } from '../sheets.jsx'
 import { drawHype, hypeEventsFor, hypeMarks, initHype } from '../lib/hype-lines.js'
-import { awayDecision, elapsedOf, endedWork, pauseClock, positionAt, resumeClock, skipBlock, startClock } from '../lib/interval-schedule.js'
+import { awayDecision, backBlock, elapsedOf, endedWork, pauseClock, positionAt, resumeClock, skipBlock, startClock } from '../lib/interval-schedule.js'
 import { bindMediaActions, mediaMetadataFor, positionStateFor, publishMedia } from '../lib/media-session.js'
 import { onAppActive } from '../lib/mobile.js'
 import { musicPlan } from '../lib/auto-music.js'
@@ -63,6 +63,7 @@ export default function IntervalPlayer() {
   const [paused, setPaused] = useState(false)
   const [muted, setMuted] = useState(false)
   const [finished, setFinished] = useState(false)
+  const [cueNonce, setCueNonce] = useState(0)   // bumped by back, so a restarted block is announced again
   const [music, setMusic] = useState(musicState)
   useEffect(() => { loadBuiltinPlaylist(); return onMusicChange(() => setMusic(musicState())) }, [])
 
@@ -129,6 +130,17 @@ export default function IntervalPlayer() {
   const skip = () => {
     clock.current = skipBlock(blocks, clock.current, Date.now())
     lastElapsed.current = elapsedOf(clock.current, Date.now())   // a skipped block's set is never logged
+    tick()
+  }
+
+  // Restart this block, or (just after its start) go to the one before. The set a block ticked stays
+  // ticked (logSet skips a done set), so replaying it never logs it twice.
+  const back = () => {
+    clock.current = backBlock(blocks, clock.current, Date.now())
+    lastElapsed.current = elapsedOf(clock.current, Date.now())   // the work that ends again ahead is not "just ended"
+    lastBeep.current = null
+    stopSpeaking()
+    setCueNonce(n => n + 1)
     tick()
   }
 
@@ -212,11 +224,12 @@ export default function IntervalPlayer() {
   })
 
   const actions = useRef({})
-  actions.current = { togglePause, skip, endWorkout, more: openMore }
+  actions.current = { togglePause, skip, back, endWorkout, more: openMore }
   useEffect(() => bindMediaActions({
     onPlay: () => { if (pausedRef.current) actions.current.togglePause() },
     onPause: () => { if (!pausedRef.current) actions.current.togglePause() },
     onNext: () => actions.current.skip(),
+    onPrevious: () => actions.current.back(),
   }), [])
 
   // Keyboard, TV remote and native media keys (lib/player-keys.js). Read through refs and the
@@ -227,6 +240,7 @@ export default function IntervalPlayer() {
       const a = actions.current
       if (action === 'toggle') a.togglePause()
       else if (action === 'skip') a.skip()
+      else if (action === 'back') a.back()
       else if (action === 'more') a.more()
       else if (action === 'end') a.endWorkout()
       return true
@@ -275,7 +289,7 @@ export default function IntervalPlayer() {
     // After a lead-in (idx 1) the first work block says just "Go!": the exercise was named already.
     const cue = idx === 0 ? t('First up: {0}. Go!', nameOf(block.id)) : t('Go!')
     speak(due.length ? cue + ' ' + hypeText(due[0]) : cue, getLang())   // one utterance: speak() cancels what is playing
-  }, [idx]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idx, cueNonce]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Out of blocks: say so, then hand over to the ordinary finish (it asks about anything unchecked).
   useEffect(() => {
@@ -336,7 +350,7 @@ export default function IntervalPlayer() {
   </div>
 
   if (tv) {
-    const countEl = <div className="ip-count" aria-live="off" style={{ ...countStyle, margin: '8px 0' }}>{left}</div>
+    const countEl = <div className="ip-count" aria-live="off" style={{ ...countStyle, margin: '8px 0', ...(paused && { opacity: 0.35 }) }}>{left}</div>
     return <div ref={rootRef} role="main" aria-label={t('Follow-along workout')} className="ip-root ip-tv" tabIndex={-1} data-dpad-owner="" style={rootStyle}>
       <div>{picture ? mediaEl : countEl}</div>
       <div>
@@ -345,9 +359,10 @@ export default function IntervalPlayer() {
         {nameEl}
         {picture && countEl}
         {upNextEl}
+        <div className="ip-paused" aria-live="polite">{paused ? t('Paused') : ''}</div>
         {/* CC BY: title, artist and licence on screen (no link: nothing to click on a TV) */}
         {music.track && <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>{nowPlayingLine(music.track, t)}</div>}
-        <div className="ip-hint">{t('OK Pause · ▶ Skip · ▼ More · Back End')}</div>
+        <div className="ip-hint">{paused ? t('OK Resume · ▶ Skip · ▼ More · Back End') : t('OK Pause · ▶ Skip · ▼ More · Back End')}</div>
       </div>
     </div>
   }

@@ -432,6 +432,21 @@ describe('hardware keys and the TV screen', () => {
     expect(mocks.S.active.entries[0].sets.every(x => !x.done)).toBe(true)
   })
 
+  it('a native MediaRewind restarts the block, and Previous right after a skip goes back to it', async () => {
+    const media = k => act(() => { window.dispatchEvent(new CustomEvent('opengym:media-key', { detail: { key: k } })) })
+    const label = () => host.querySelector('div[style*="letter-spacing"]').textContent
+    const full = counter()
+    await tick(6_000)
+    expect(counter()).not.toBe(full)
+    media('MediaRewind')
+    expect(counter()).toBe(full)
+    key('ArrowRight')
+    expect(label()).toBe('Rest')
+    media('MediaTrackPrevious')
+    expect(label()).toBe('Work')
+    expect(counter()).toBe(full)
+  })
+
   it('a native MediaPlayPause toggles pause and play', async () => {
     act(() => { window.dispatchEvent(new CustomEvent('opengym:media-key', { detail: { key: 'MediaPlayPause' } })) })
     expect(pauseMusic).toHaveBeenCalled()
@@ -463,6 +478,19 @@ describe('hardware keys and the TV screen', () => {
     expect(finishWorkoutSheet).toHaveBeenCalledTimes(1)
     expect(finishWorkout).not.toHaveBeenCalled()
     expect(typeof finishWorkoutSheet.mock.calls[0][0].onDiscard).toBe('function')
+  })
+
+  it('on a TV: pausing shows the Paused badge and the resume hint, resuming removes them', () => {
+    act(() => { useUI.setState({ tv: true }) })
+    const tvText = () => host.querySelector('.ip-tv').textContent
+    expect(tvText()).not.toContain('Paused')
+    key('Enter')
+    expect(host.querySelector('.ip-paused').textContent).toBe('Paused')
+    expect(tvText()).toContain('OK Resume')
+    expect(tvText()).not.toContain('OK Pause')
+    key('Enter')
+    expect(host.querySelector('.ip-paused').textContent).toBe('')
+    expect(tvText()).toContain('OK Pause')
   })
 
   it('on a TV: the playing track, artist and licence are on screen', () => {

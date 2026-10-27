@@ -950,6 +950,7 @@ html[data-tv] .tv-foot .tv-item{width:auto;font-size:20px}
 html[data-tv] .ip-tv{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center;padding:27px 48px}
 html[data-tv] .ip-tv .ip-media .exmedia img,html[data-tv] .ip-tv .ip-media .exmedia video{height:58vh}
 html[data-tv] .ip-tv .ip-count{font-size:min(26vh,220px)}
+html[data-tv] .ip-tv .ip-paused:not(:empty){display:inline-block;margin-top:16px;padding:6px 20px;border:2px solid var(--label);border-radius:999px;font-size:22px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
 html[data-tv] .ip-tv .ip-hint{opacity:.6;font-size:18px;margin-top:24px}
 
 /* the link to a video or a guide (#246): a quiet action tile under the picture, or in its place.

@@ -286,7 +286,7 @@ code. On the TV: Connect to my server, then type the code (the address is prefil
 
 **Remote keys in the follow-along player**
 
-OK pauses and resumes · ▶ (play/next) skips to the next block · ▼ opens more · Back ends the workout.
+OK pauses and resumes · ▶ (play/next) skips to the next block · ⏮ / ⏪ (previous / rewind) goes back: restarts the block, or from its first 3 seconds the one before · ▼ opens more · Back ends the workout.
 The arrow keys move focus everywhere else.
 
 **Trying TV mode in a desktop browser**

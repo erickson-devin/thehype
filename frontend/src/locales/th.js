@@ -2259,4 +2259,5 @@ export default {
   'Music Integration': 'การเชื่อมต่อเพลง',
   'Room Speakers (Advanced)': 'ลำโพงในห้อง (ขั้นสูง)',
   'Phone / Headphone Audio': 'เสียงจากโทรศัพท์ / หูฟัง',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK เล่นต่อ · ▶ ข้าม · ▼ เพิ่มเติม · ย้อนกลับ จบ',
 }

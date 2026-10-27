@@ -2268,4 +2268,5 @@ export default {
   'Music Integration': 'Musik-Anbindung',
   'Room Speakers (Advanced)': 'Raumlautsprecher (Fortgeschritten)',
   'Phone / Headphone Audio': 'Smartphone-/Kopfhörer-Audio',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK Weiter · ▶ Überspringen · ▼ Mehr · Zurück Beenden',
 }

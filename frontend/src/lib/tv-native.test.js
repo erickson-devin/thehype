@@ -27,9 +27,9 @@ describe('Android TV, native side', () => {
     expect(plugin).toContain('@CapacitorPlugin(name = "TvMode")')
     expect(plugin).toContain('UI_MODE_TYPE_TELEVISION')
   })
-  it('the activity forwards the six remote media keys to the page', () => {
+  it('the activity forwards the eight remote media keys to the page', () => {
     const activity = read(java + 'MainActivity.java')
-    for (const k of ['MEDIA_PLAY_PAUSE', 'MEDIA_PLAY', 'MEDIA_PAUSE', 'MEDIA_NEXT', 'MEDIA_FAST_FORWARD', 'MEDIA_STOP'])
+    for (const k of ['MEDIA_PLAY_PAUSE', 'MEDIA_PLAY', 'MEDIA_PAUSE', 'MEDIA_NEXT', 'MEDIA_PREVIOUS', 'MEDIA_REWIND', 'MEDIA_FAST_FORWARD', 'MEDIA_STOP'])
       expect(activity).toContain('case KeyEvent.KEYCODE_' + k + ':')
     expect(activity).toContain('opengym:media-key')
   })

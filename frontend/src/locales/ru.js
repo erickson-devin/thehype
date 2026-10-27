@@ -2252,4 +2252,5 @@ export default {
   'Music Integration': 'Интеграция музыки',
   'Room Speakers (Advanced)': 'Колонки в комнате (для опытных)',
   'Phone / Headphone Audio': 'Звук на телефоне / в наушниках',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK Продолжить · ▶ Пропустить · ▼ Ещё · Назад Завершить',
 }

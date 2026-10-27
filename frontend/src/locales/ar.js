@@ -2303,4 +2303,5 @@ export default {
   'Music Integration': 'تكامل الموسيقى',
   'Room Speakers (Advanced)': 'مكبرات الغرفة (متقدم)',
   'Phone / Headphone Audio': 'صوت الهاتف / سماعات الرأس',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'موافق استئناف · ▶ تخطي · ▼ المزيد · رجوع إنهاء',
 }

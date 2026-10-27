@@ -2248,4 +2248,5 @@ export default {
   'Music Integration': 'Integrazione musicale',
   'Room Speakers (Advanced)': 'Casse della stanza (avanzato)',
   'Phone / Headphone Audio': 'Audio telefono / cuffie',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK Riprendi · ▶ Salta · ▼ Altro · Indietro Termina',
 }

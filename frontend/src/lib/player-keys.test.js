@@ -38,6 +38,9 @@ describe('playerKeyAction', () => {
     expect(playerKeyAction(key('MediaPause'), { paused: true })).toBeNull()
     expect(playerKeyAction(key('MediaTrackNext'))).toBe('skip')
     expect(playerKeyAction(key('MediaFastForward'))).toBe('skip')
+    expect(playerKeyAction(key('MediaTrackPrevious'))).toBe('back')
+    expect(playerKeyAction(key('MediaRewind'))).toBe('back')
+    expect(playerKeyAction(key('ArrowLeft'))).toBeNull()
     expect(playerKeyAction(key('MediaStop'))).toBe('end')
   })
   it('is null with no event, a handled event, a repeat or composition', () => {
@@ -73,6 +76,8 @@ describe('mediaKeyAction', () => {
     expect(mediaKeyAction('MediaPlay', { paused: false })).toBeNull()
     expect(mediaKeyAction('MediaPause', { paused: false })).toBe('toggle')
     expect(mediaKeyAction('MediaTrackNext')).toBe('skip')
+    expect(mediaKeyAction('MediaTrackPrevious')).toBe('back')
+    expect(mediaKeyAction('MediaRewind')).toBe('back')
     expect(mediaKeyAction('MediaStop')).toBe('end')
     expect(mediaKeyAction('Enter')).toBeNull()
     expect(mediaKeyAction(undefined)).toBeNull()

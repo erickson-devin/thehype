@@ -2248,4 +2248,5 @@ export default {
   'Music Integration': 'संगीत इंटीग्रेशन',
   'Room Speakers (Advanced)': 'रूम स्पीकर (एडवांस्ड)',
   'Phone / Headphone Audio': 'फ़ोन / हेडफ़ोन ऑडियो',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK जारी रखें · ▶ छोड़ें · ▼ और · वापस समाप्त',
 }

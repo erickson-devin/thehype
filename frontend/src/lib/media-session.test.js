@@ -50,17 +50,18 @@ describe('adapter', () => {
     setNav({})
     expect(() => { publishMedia({ title: 'x' }, { playing: true, position: null }); bindMediaActions({})() }).not.toThrow()
   })
-  it('binds three handlers and unbind nulls them', () => {
+  it('binds four handlers and unbind nulls them', () => {
     const setActionHandler = vi.fn()
     setNav({ mediaSession: { setActionHandler } })
-    const fns = { onPlay: () => {}, onPause: () => {}, onNext: () => {} }
+    const fns = { onPlay: () => {}, onPause: () => {}, onNext: () => {}, onPrevious: () => {} }
     const unbind = bindMediaActions(fns)
     expect(setActionHandler).toHaveBeenCalledWith('play', fns.onPlay)
     expect(setActionHandler).toHaveBeenCalledWith('pause', fns.onPause)
     expect(setActionHandler).toHaveBeenCalledWith('nexttrack', fns.onNext)
+    expect(setActionHandler).toHaveBeenCalledWith('previoustrack', fns.onPrevious)
     setActionHandler.mockClear()
     unbind()
     expect(setActionHandler.mock.calls.every(c => c[1] === null)).toBe(true)
-    expect(setActionHandler.mock.calls.map(c => c[0])).toEqual(expect.arrayContaining(['play', 'pause', 'nexttrack']))
+    expect(setActionHandler.mock.calls.map(c => c[0])).toEqual(expect.arrayContaining(['play', 'pause', 'nexttrack', 'previoustrack']))
   })
 })

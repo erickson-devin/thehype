@@ -7,7 +7,7 @@ const OWNS_KEYS = 'input,textarea,select,[contenteditable=""],[contenteditable="
 const CONTROL = 'button,a[href],[role="button"]'
 
 /**
- * What a media key means: 'toggle', 'skip', 'end' or null. Play and Pause are one-way, so a
+ * What a media key means: 'toggle', 'skip', 'back', 'end' or null. Play and Pause are one-way, so a
  * second "play" while playing does not pause the clock.
  */
 export function mediaKeyAction(key, { paused = false } = {}) {
@@ -17,13 +17,15 @@ export function mediaKeyAction(key, { paused = false } = {}) {
     case 'MediaPause': return paused ? null : 'toggle'
     case 'MediaTrackNext':
     case 'MediaFastForward': return 'skip'
+    case 'MediaTrackPrevious':
+    case 'MediaRewind': return 'back'
     case 'MediaStop': return 'end'
     default: return null
   }
 }
 
 /**
- * What a key press means on the player: 'toggle', 'skip', 'more', 'end', or null when it is not
+ * What a key press means on the player: 'toggle', 'skip', 'back', 'more', 'end', or null when it is not
  * one of these keys or not the player's to take. 'more' and 'end' (ArrowDown/ContextMenu and
  * Escape) are TV-only: on a phone or laptop Escape and the arrows keep their own meaning.
  */

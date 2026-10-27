@@ -2248,4 +2248,5 @@ export default {
   'Music Integration': 'Müzik entegrasyonu',
   'Room Speakers (Advanced)': 'Oda hoparlörleri (gelişmiş)',
   'Phone / Headphone Audio': 'Telefon / kulaklık sesi',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK Devam et · ▶ Atla · ▼ Daha fazla · Geri Bitir',
 }

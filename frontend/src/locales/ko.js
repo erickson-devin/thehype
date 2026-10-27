@@ -2248,4 +2248,5 @@ export default {
   'Music Integration': '음악 연동',
   'Room Speakers (Advanced)': '실내 스피커 (고급)',
   'Phone / Headphone Audio': '휴대폰 / 헤드폰 오디오',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK 이어하기 · ▶ 건너뛰기 · ▼ 더보기 · 뒤로 종료',
 }

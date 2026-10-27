@@ -2251,4 +2251,5 @@ export default {
   'Music Integration': 'Zene-integráció',
   'Room Speakers (Advanced)': 'Szobai hangszórók (haladó)',
   'Phone / Headphone Audio': 'Telefon / fejhallgató hang',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK Folytatás · ▶ Ugrás · ▼ Több · Vissza Befejezés',
 }

@@ -37,6 +37,23 @@ export function skipBlock(blocks, clock, now) {
   return { ...clock, cuts: { ...clock.cuts, [pos.idx]: pos.elapsedMs - startOf(lengths, pos.idx) } }
 }
 
+// Further into a block than this, back restarts it; sooner, back goes to the block before.
+export const RESTART_MS = 3000
+
+// Back one: restart the current block, or (within RESTART_MS of its start) go to the start of the
+// previous one. The cuts of every block it re-enters are dropped so they play in full again, and
+// the clock is shifted (pausedMs) so it works the same while paused. Sets already ticked stay ticked.
+export function backBlock(blocks, clock, now) {
+  const pos = positionAt(blocks, clock, now)
+  if (pos.done) return clock
+  const inBlock = pos.elapsedMs - startOf(lengthsOf(blocks, clock), pos.idx)
+  const target = inBlock > RESTART_MS ? pos.idx : Math.max(0, pos.idx - 1)
+  const cuts = {}
+  for (const k of Object.keys(clock.cuts)) if (+k < target) cuts[k] = clock.cuts[k]
+  const to = startOf(lengthsOf(blocks, { ...clock, cuts }), target)
+  return { ...clock, cuts, pausedMs: (clock.pausedAt ?? now) - clock.startedAt - to }
+}
+
 // Indices of work blocks whose end falls in (fromElapsed, toElapsed].
 export function endedWork(blocks, clock, fromElapsed, toElapsed) {
   const lengths = lengthsOf(blocks, clock)

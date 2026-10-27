@@ -2248,4 +2248,5 @@ export default {
   'Music Integration': '音乐集成',
   'Room Speakers (Advanced)': '室内扬声器（高级）',
   'Phone / Headphone Audio': '手机／耳机音频',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK 继续 · ▶ 跳过 · ▼ 更多 · 返回 结束',
 }

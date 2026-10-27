@@ -65,6 +65,8 @@ public class MainActivity extends BridgeActivity {
             case KeyEvent.KEYCODE_MEDIA_PLAY: return "MediaPlay";
             case KeyEvent.KEYCODE_MEDIA_PAUSE: return "MediaPause";
             case KeyEvent.KEYCODE_MEDIA_NEXT: return "MediaTrackNext";
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS: return "MediaTrackPrevious";
+            case KeyEvent.KEYCODE_MEDIA_REWIND: return "MediaRewind";
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: return "MediaFastForward";
             case KeyEvent.KEYCODE_MEDIA_STOP: return "MediaStop";
             default: return null;

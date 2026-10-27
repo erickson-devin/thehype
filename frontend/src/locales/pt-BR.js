@@ -1409,6 +1409,7 @@ export const PT_BR_OVERRIDES = {
   'Music Integration': 'Integração de música',
   'Room Speakers (Advanced)': 'Caixas de som do ambiente (avançado)',
   'Phone / Headphone Audio': 'Áudio do celular / fones de ouvido',
+  'OK Resume · ▶ Skip · ▼ More · Back End': 'OK Retomar · ▶ Pular · ▼ Mais · Voltar Encerrar',
 }
 
 export default { ...pt, ...PT_BR_OVERRIDES }

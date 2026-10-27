@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  AWAY_POLICY, awayDecision, endedWork, holdFrom, lengthsOf, pauseClock, positionAt, resumeClock, skipBlock, startClock,
+  AWAY_POLICY, awayDecision, backBlock, endedWork, holdFrom, lengthsOf, pauseClock, positionAt, resumeClock, skipBlock, startClock,
 } from './interval-schedule.js'
 
 const B = [
@@ -51,6 +51,40 @@ describe('skipBlock', () => {
   })
   it('skipping the last block finishes', () => {
     expect(positionAt(B, skipBlock(B, c, 125000), 125000).done).toBe(true)
+  })
+})
+
+describe('backBlock', () => {
+  it('restarts the block when more than 3 s into it', () => {
+    const b = backBlock(B, c, 70000)   // 10 s into block 2
+    expect(positionAt(B, b, 70000)).toMatchObject({ idx: 2, leftMs: 40000 })
+  })
+  it('goes to the previous block within 3 s of the start', () => {
+    const b = backBlock(B, c, 62000)
+    expect(positionAt(B, b, 62000)).toMatchObject({ idx: 1, leftMs: 20000 })
+    expect(positionAt(B, b, 82000)).toMatchObject({ idx: 2, leftMs: 40000 })
+  })
+  it('restarts block 0 from anywhere in it', () => {
+    expect(positionAt(B, backBlock(B, c, 1000), 1000)).toMatchObject({ idx: 0, leftMs: 40000 })
+    expect(positionAt(B, backBlock(B, c, 9000), 9000)).toMatchObject({ idx: 0, leftMs: 40000 })
+  })
+  it('clears the cuts of the blocks it re-enters, and keeps earlier ones', () => {
+    const cut = skipBlock(B, skipBlock(B, c, 10000), 15000)   // block 0 cut at 10 s, block 1 at 5 s
+    expect(cut.cuts).toEqual({ 0: 10000, 1: 5000 })
+    expect(backBlock(B, cut, 20000).cuts).toEqual({ 0: 10000, 1: 5000 })   // 5 s into block 2: restart it
+    const b = backBlock(B, cut, 16000)   // 1 s into block 2: back to block 1, in full
+    expect(b.cuts).toEqual({ 0: 10000 })
+    expect(positionAt(B, b, 16000)).toMatchObject({ idx: 1, leftMs: 20000 })
+  })
+  it('works while paused and stays paused', () => {
+    const p = pauseClock(c, 70000)
+    const b = backBlock(B, p, 90000)
+    expect(b.pausedAt).toBe(70000)
+    expect(positionAt(B, b, 90000)).toMatchObject({ idx: 2, leftMs: 40000 })
+    expect(positionAt(B, resumeClock(b, 90000), 95000)).toMatchObject({ idx: 2, leftMs: 35000 })
+  })
+  it('does nothing once finished', () => {
+    expect(backBlock(B, c, 200000)).toBe(c)
   })
 })
 

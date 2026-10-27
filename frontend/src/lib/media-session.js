@@ -53,12 +53,13 @@ export function publishMedia(meta, { playing, position } = {}) {
 
 const set = (ms, action, fn) => { try { ms.setActionHandler(action, fn) } catch { /* unsupported action */ } }
 
-export function bindMediaActions({ onPlay, onPause, onNext }) {
+export function bindMediaActions({ onPlay, onPause, onNext, onPrevious }) {
   const ms = typeof navigator !== 'undefined' && 'mediaSession' in navigator ? navigator.mediaSession : null
   if (!ms) return () => {}
   set(ms, 'play', onPlay)
   set(ms, 'pause', onPause)
   set(ms, 'nexttrack', onNext)
-  for (const a of ['previoustrack', 'seekto', 'seekbackward', 'seekforward']) set(ms, a, null)
+  set(ms, 'previoustrack', onPrevious)
+  for (const a of ['seekto', 'seekbackward', 'seekforward']) set(ms, a, null)
   return () => { for (const a of ['play', 'pause', 'nexttrack', 'previoustrack', 'seekto', 'seekbackward', 'seekforward']) set(ms, a, null) }
 }
