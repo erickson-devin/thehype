@@ -19,7 +19,9 @@ import { queueOf } from '../lib/queue.js'
 import { api, webauthnOK, passkeyRegister, passkeyError, IS_ANDROID } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush, syncPushSubscription } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
-import { t, tn, LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, baseLang, dateLocale } from '../lib/i18n.js'
+import { t, tn, LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, baseLang, dateLocale, getLang } from '../lib/i18n.js'
+import { speechSupported, availableVoices, onVoicesChanged, voicesVersion, savedVoiceURI, saveVoiceURI, previewVoice } from '../lib/interval-audio.js'
+import { rankVoices, pickVoice, voiceLabel, voiceDetail } from '../lib/voice.js'
 import { effectiveLang } from '../lib/default-lang.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, isAndroid, shareExport, shareExportBlob, syncReminder } from '../lib/mobile.js'
@@ -392,6 +394,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   const canVibrate = vibrateSupported()
   const ctx = {
     user, mobile: MOBILE, android, demo: DEMO, wakeOK, hasMedia, pwOn, webauthn: webauthnOK(),
+    speech: speechSupported(),
     sound: !!S.sound, playOnSilent: playOnSilentSupported(), canVibrate, vibrate: S.vibrate !== false,
     profiles: (S.equipProfiles || []).length > 0, nameLang: EXERCISE_NAME_LANGS.includes(baseLang(lang)),
     pushOK: !MOBILE && pushSupported(), reminderOn: !!S.reminder?.on, nudge: !!S.reminder?.nudge,
@@ -510,6 +513,11 @@ export default function Settings({ page = null, find = null, via = null }) {
             onChange={v => update(s => { s.gifSize = v })} />
         </Row>
       </Section>
+      {/* The voice the follow-along player speaks in (lib/voice.js picks; lib/interval-audio.js
+          speaks). Per device, since every phone has its own voices: localStorage, never synced. */}
+      {ctx.speech && <Section title={t('Voice cues')} footer={t('Voices come from your phone. On iPhone, download an Enhanced or Premium voice under Settings → Accessibility → Spoken Content → Voices for a far more natural one; Automatic picks it. Siri’s voices are not available to apps.')}>
+        <VoiceRow />
+      </Section>}
       {/* Music for every workout (lib/auto-music.js): saved on this profile, so each person on an
           instance brings their own player. Room Speakers (the webhook) win when both are filled in. */}
       <Section title={t('Music Integration')} footer={<>
@@ -1058,6 +1066,39 @@ export function RestSoundSheet({ close }) {
   </>
 }
 const restSoundSheet = () => useUI.getState().openSheet(close => <RestSoundSheet close={close} />)
+
+// Settings → Voice: the automatic pick plus every voice this phone has for the cue language,
+// each spoken as it is tapped (inside the tap, which iOS needs for speech), like RestSoundSheet.
+const VOICE_PREVIEW = 'Get ready. First up: push-ups. Go!'
+const useVoices = () => { useSyncExternalStore(onVoicesChanged, voicesVersion); return rankVoices(availableVoices(), getLang()) }
+function VoiceRow() {
+  const voices = useVoices()
+  const chosen = savedVoiceURI()
+  const cur = chosen && voices.find(v => v.voiceURI === chosen)
+  return <Row icon="chat" iconTint="var(--pink)" title={t('Voice')} value={cur ? voiceLabel(cur) : t('Automatic')}
+    accessory="chevron" onClick={() => useUI.getState().openSheet(close => <VoiceSheet close={close} />)} />
+}
+export function VoiceSheet({ close }) {
+  const voices = useVoices()
+  const lang = getLang()
+  const chosen = savedVoiceURI()
+  const isAuto = !chosen || !voices.some(v => v.voiceURI === chosen)
+  const auto = pickVoice(voices, lang, null)
+  const pick = uri => { saveVoiceURI(uri); previewVoice(uri, lang, t(VOICE_PREVIEW)) }
+  return <>
+    <h3>{t('Voice')}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>{t('Tap one to hear it.')}</div>
+    <Section>
+      <Row icon={isAuto ? 'speaker' : 'play'} iconTint="var(--pink)" title={t('Automatic')}
+        subtitle={auto ? voiceLabel(auto) : null} accessory={isAuto ? 'check' : 'none'} onClick={() => pick(null)} />
+      {voices.map(v => { const on = !isAuto && v.voiceURI === chosen
+        return <Row key={v.voiceURI} icon={on ? 'speaker' : 'play'} iconTint="var(--pink)" title={voiceLabel(v)}
+          subtitle={voiceDetail(v, t)} accessory={on ? 'check' : 'none'} onClick={() => pick(v.voiceURI)} /> })}
+    </Section>
+    <div style={{ height: 14 }} />
+    <Button variant="primary" onClick={close}>{t('Done')}</Button>
+  </>
+}
 
 function effortHelpSheet() {
   useUI.getState().openSheet(close => <>

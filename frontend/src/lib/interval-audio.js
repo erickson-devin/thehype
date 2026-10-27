@@ -1,6 +1,8 @@
 // Audio cues for the follow-along player: spoken announcements (Web Speech API) and the 3-2-1
 // countdown beeps, which go through lib/sound.js so they get its iOS handling. No audio files.
+// Which voice speaks (and how fast) is chosen by lib/voice.js.
 import { beep } from './sound.js'
+import { pickVoice, speechTuning } from './voice.js'
 
 const synth = () => (typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null)
 
@@ -10,8 +12,34 @@ let speechSeq = 0
 export function onSpeech(fn) { speechListeners.add(fn); return () => { speechListeners.delete(fn) } }
 const tell = on => { for (const fn of speechListeners) { try { fn(on) } catch { /* a listener never stops speech */ } } }
 
+// The voices, per device. Chrome/Android answer getVoices() with [] until 'voiceschanged' fires,
+// so the list is cached when it comes and Settings is told (onVoicesChanged).
+let voiceCache = [], hookedOn = null, voicesVer = 0
+const voiceListeners = new Set()
+const bump = () => { voicesVer++; for (const fn of voiceListeners) { try { fn() } catch { /* */ } } }
+export function availableVoices(s = synth()) {
+  if (!s || typeof s.getVoices !== 'function') return []
+  if (hookedOn !== s) {
+    hookedOn = s; voiceCache = []
+    const refresh = () => { try { voiceCache = s.getVoices() || [] } catch { /* keep the last list */ } bump() }
+    try { if (typeof s.addEventListener === 'function') s.addEventListener('voiceschanged', refresh); else s.onvoiceschanged = refresh } catch { /* */ }
+  }
+  try { const list = s.getVoices(); if (list && list.length) voiceCache = list } catch { /* */ }
+  return voiceCache
+}
+export const speechSupported = () => !!synth() && typeof SpeechSynthesisUtterance !== 'undefined'
+export const onVoicesChanged = fn => { voiceListeners.add(fn); return () => { voiceListeners.delete(fn) } }
+export const voicesVersion = () => voicesVer
+// This phone's chosen voice (voices differ per device, so never synced: not in gym_state_v1).
+export const VOICE_KEY = 'gym_voice'
+export const savedVoiceURI = () => { try { return localStorage.getItem(VOICE_KEY) || null } catch { return null } }
+export function saveVoiceURI(uri) {
+  try { if (uri) localStorage.setItem(VOICE_KEY, uri); else localStorage.removeItem(VOICE_KEY) } catch { /* storage blocked: automatic */ }
+  bump()
+}
+
 /** Say `text` now, cutting off anything still being spoken. Silent where speech is unavailable. */
-export function speak(text, lang) {
+export function speak(text, lang, opts = {}) {
   const s = synth()
   if (!s || !text || typeof SpeechSynthesisUtterance === 'undefined') return
   try {
@@ -21,7 +49,11 @@ export function speak(text, lang) {
     let over = false
     const end = () => { if (over) return; over = true; if (my === speechSeq) tell(false) }
     const u = new SpeechSynthesisUtterance(text)
-    if (lang) u.lang = lang
+    const voice = pickVoice(availableVoices(s), lang, 'voiceURI' in opts ? opts.voiceURI : savedVoiceURI())
+    if (voice) { u.voice = voice; u.lang = voice.lang || lang }   // Safari ignores a voice whose lang disagrees
+    else if (lang) u.lang = lang
+    const { rate, pitch } = speechTuning()
+    u.rate = rate; u.pitch = pitch
     u.onend = end
     u.onerror = end
     setTimeout(end, 2000 + text.length * 80)   // engines that never fire onend
@@ -29,6 +61,8 @@ export function speak(text, lang) {
     s.speak(u)
   } catch { tell(false) /* speech is a nicety, never a failure */ }
 }
+/** Settings' preview: says `text` in the voice given (null = the automatic pick). Call from a tap. */
+export const previewVoice = (voiceURI, lang, text) => speak(text, lang, { voiceURI: voiceURI || null })
 export function stopSpeaking() {
   speechSeq++
   try { synth()?.cancel() } catch { /* */ }

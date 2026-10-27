@@ -62,6 +62,7 @@ export const SEARCH = [
   { page: 'workout', title: 'Room Speakers (Advanced)', icon: 'speaker', tint: 'var(--pink)', kw: 'music spotify playlist webhook url smart speakers network home gym server endpoint sonos automated interval workout start play' },
   { page: 'workout', title: 'Phone / Headphone Audio', icon: 'headphones', tint: 'var(--green)', kw: 'music spotify apple music deep link app playlist earbuds earphones phone automated interval workout start play' },
   { page: 'workout', title: 'Exercise animations', icon: 'image', tint: 'var(--teal)', kw: 'gif animation video media pictures images', opts: ['Full', 'Small', 'Hidden'] },
+  { page: 'workout', title: 'Voice', icon: 'chat', tint: 'var(--pink)', kw: 'voice voices speech spoken cues tts text to speech announcer narrator siri enhanced premium follow along interval accent', opts: ['Automatic'], when: c => c.speech },
   { page: 'workout', title: 'Fine-tuning', icon: 'wrench', tint: 'var(--grey)', kw: 'advanced more options' },
   // Fine-tuning
   { page: 'advanced', title: 'Planned sessions start from', icon: 'clipboard', tint: 'var(--green)', kw: 'start from plan last session reps carry over', opts: ['Your plan', 'Your last session'] },

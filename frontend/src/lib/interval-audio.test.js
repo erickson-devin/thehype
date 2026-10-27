@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./sound.js', () => ({ beep: vi.fn() }))
 import { beep } from './sound.js'
-import { countdownBeep, onSpeech, speak, stopSpeaking } from './interval-audio.js'
+import { countdownBeep, onSpeech, speak, stopSpeaking, onVoicesChanged, voicesVersion, savedVoiceURI, saveVoiceURI, previewVoice } from './interval-audio.js'
 
 class Utterance { constructor(text) { this.text = text } }
 
@@ -142,5 +142,116 @@ describe('onSpeech', () => {
   it('works without a window', () => {
     expect(typeof onSpeech(() => {})).toBe('function')
     expect(() => speak('Go!')).not.toThrow()
+  })
+})
+
+const V = (name, voiceURI, lang, localService = true, def = false) => ({ name, voiceURI, lang, localService, default: def })
+const DANIEL = 'com.apple.voice.compact.en-GB.Daniel'
+const IOS = [
+  V('Samantha', 'com.apple.voice.compact.en-US.Samantha', 'en-US', true, true),
+  V('Samantha (Enhanced)', 'com.apple.voice.enhanced.en-US.Samantha', 'en-US'),
+  V('Daniel', DANIEL, 'en-GB'),
+]
+const store = new Map()
+const memoryStorage = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { store.set(k, String(v)) }, removeItem: k => { store.delete(k) } }
+const setupVoices = list => {
+  store.clear()
+  vi.stubGlobal('localStorage', memoryStorage)
+  vi.stubGlobal('SpeechSynthesisUtterance', Utterance)
+  const engine = { cancel: vi.fn(), speak: vi.fn(), getVoices: vi.fn(() => list), addEventListener: vi.fn() }
+  vi.stubGlobal('window', { speechSynthesis: engine })
+  return engine
+}
+const lastU = engine => engine.speak.mock.calls.at(-1)[0]
+
+describe('speak: voice selection', () => {
+  it('uses the best voice, its language, and the tuned rate', () => {
+    const engine = setupVoices(IOS)
+    speak('Go!', 'en')
+    const u = lastU(engine)
+    expect(u.voice.name).toBe('Samantha (Enhanced)')
+    expect(u.lang).toBe('en-US')
+    expect(u.rate).toBe(0.95)
+    expect(u.pitch).toBe(1)
+  })
+  it('falls back to the language when there are no voices', () => {
+    const engine = setupVoices([])
+    speak('Go!', 'de')
+    const u = lastU(engine)
+    expect(u.voice).toBeUndefined()
+    expect(u.lang).toBe('de')
+    expect(u.rate).toBe(0.95)
+  })
+  it('still speaks on an engine without getVoices', () => {
+    const engine = { cancel: vi.fn(), speak: vi.fn() }
+    vi.stubGlobal('window', { speechSynthesis: engine })
+    vi.stubGlobal('SpeechSynthesisUtterance', Utterance)
+    speak('Go!', 'de')
+    expect(lastU(engine).lang).toBe('de')
+  })
+  it('picks up voices that arrive on voiceschanged and tells listeners', () => {
+    let list = []
+    const engine = setupVoices([])
+    engine.getVoices.mockImplementation(() => list)
+    speak('Go!', 'en')
+    expect(lastU(engine).voice).toBeUndefined()
+    const fn = vi.fn()
+    const off = onVoicesChanged(fn)
+    const before = voicesVersion()
+    list = IOS
+    const call = engine.addEventListener.mock.calls[0]
+    expect(call[0]).toBe('voiceschanged')
+    call[1]()
+    speak('Go!', 'en')
+    expect(lastU(engine).voice.name).toBe('Samantha (Enhanced)')
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(voicesVersion()).toBeGreaterThan(before)
+    off()
+  })
+  it('hooks voiceschanged once per engine', () => {
+    const engine = setupVoices(IOS)
+    speak('a', 'en'); speak('b', 'en')
+    expect(engine.addEventListener).toHaveBeenCalledTimes(1)
+  })
+  it('assigns onvoiceschanged on an engine without addEventListener', () => {
+    const engine = { cancel: vi.fn(), speak: vi.fn(), getVoices: vi.fn(() => IOS) }
+    vi.stubGlobal('window', { speechSynthesis: engine })
+    vi.stubGlobal('SpeechSynthesisUtterance', Utterance)
+    speak('Go!', 'en')
+    expect(typeof engine.onvoiceschanged).toBe('function')
+  })
+  it('honours a saved voice and returns to automatic when cleared', () => {
+    const engine = setupVoices(IOS)
+    saveVoiceURI(DANIEL)
+    speak('Go!', 'en')
+    expect(lastU(engine).voice.name).toBe('Daniel')
+    saveVoiceURI(null)
+    expect(store.has('gym_voice')).toBe(false)
+    speak('Go!', 'en')
+    expect(lastU(engine).voice.name).toBe('Samantha (Enhanced)')
+  })
+  it('survives blocked storage', () => {
+    setupVoices(IOS)
+    const bad = { getItem: () => { throw new Error('x') }, setItem: () => { throw new Error('x') }, removeItem: () => { throw new Error('x') } }
+    vi.stubGlobal('localStorage', bad)
+    expect(savedVoiceURI()).toBeNull()
+    expect(() => saveVoiceURI('x')).not.toThrow()
+  })
+  it('previews the given voice regardless of the stored one, or the automatic pick for null', () => {
+    const engine = setupVoices(IOS)
+    saveVoiceURI('com.apple.voice.compact.en-US.Samantha')
+    previewVoice(DANIEL, 'en', 'Hi')
+    expect(lastU(engine).text).toBe('Hi')
+    expect(lastU(engine).voice.name).toBe('Daniel')
+    previewVoice(null, 'en', 'Hi')
+    expect(lastU(engine).voice.name).toBe('Samantha (Enhanced)')
+  })
+  it('still ducks around speech with voices present', () => {
+    setupVoices(IOS)
+    const fn = vi.fn()
+    const off = onSpeech(fn)
+    speak('Go!', 'en')
+    expect(fn).toHaveBeenNthCalledWith(1, true)
+    off()
   })
 })

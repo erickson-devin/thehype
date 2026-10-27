@@ -84,6 +84,9 @@ invite-only and give yourself an admin dashboard; see
 ### Can The Hype start my music when a workout begins?
 Yes, with either of two settings under Settings → Workout → Music: a deep link, which opens the music app on this device (for example `spotify:playlist:…`), or a webhook, where The Hype sends a `POST` with no body to your address when any workout starts (Home Assistant's webhook trigger accepts this by default). From a page served over https the browser cannot call a plain `http://` address on your LAN, and Settings warns you when that is the case; put the endpoint behind an https reverse proxy, or use the deep link. The music is a nicety: a failed call never stops the workout.
 
+### The voice in follow-along workouts sounds robotic. Can I change it?
+The spoken cues use voices that come from your phone; nothing goes to a cloud service, and Siri's voices are not exposed to web apps. On iPhone, open Settings → Accessibility → Spoken Content → Voices → your language and download an *Enhanced* or *Premium* voice. That is the biggest single improvement, and Automatic picks it next time the app opens. On Android, install or update "Speech Services by Google" and download the offline voice for your language. Then go to The Hype → Settings → Workout → Voice cues → Voice, tap a voice to hear it, and choose one. The choice is per device.
+
 ### How do I update?
 
 `git pull && docker compose pull && docker compose up -d`. Your data is untouched. See
