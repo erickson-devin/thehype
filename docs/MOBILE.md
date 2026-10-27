@@ -249,6 +249,57 @@ into both native projects — re-run it after every web-code change before build
 > **Heads-up:** after `build:mobile`, `frontend/dist` contains the *mobile* bundle.
 > Run a plain `npm run build` again before deploying `dist` to a server.
 
+## Android TV / Google TV
+
+The Android APK is also an Android TV app: one APK for phone and TV, sideloaded (there is no Play Store
+listing). On a television it appears in the TV launcher, opens on a remote-friendly start screen that lists
+your follow-along routines, and is driven entirely with the remote.
+
+**Building it locally**
+
+```bash
+cd frontend
+npm run build:mobile
+cd android && ./gradlew assembleDebug
+# -> app/build/outputs/apk/debug/app-debug.apk
+```
+
+To save typing on the TV, put your server's address in `frontend/.env.local` (git-ignored); the connect
+screen then starts with it filled in:
+
+```
+VITE_DEFAULT_SERVER=http://<server>:8080
+```
+
+**Installing over the network (ADB)**
+
+1. On the TV: Settings → Device Preferences → About, tap Build seven times; then Developer options → turn on
+   USB debugging / Network debugging.
+2. On your computer: `adb connect <tv-ip>:5555`, accept the prompt on the TV.
+3. `adb install -r app-debug.apk`
+
+**Pairing**
+
+On a phone or in a browser signed in to your server: Settings → Account → Pair the mobile app, which shows a
+code. On the TV: Connect to my server, then type the code (the address is prefilled when the build carries
+`VITE_DEFAULT_SERVER`).
+
+**Remote keys in the follow-along player**
+
+OK pauses and resumes · ▶ (play/next) skips to the next block · ▼ opens more · Back ends the workout.
+The arrow keys move focus everywhere else.
+
+**Trying TV mode in a desktop browser**
+
+In the dev server, add `?tv=1` to the address to switch TV mode on (it is remembered), `?tv=0` to switch it
+off and `?tv=clear` to forget the choice; then use the arrow keys, Enter and Escape.
+
+**Known limits**
+
+- No music in the APK yet.
+- Exercise clips are 180 px wide, so they look soft on a big screen.
+- Spoken cues use the voices the TV has installed; some TVs have none or only one.
+
 ## App icons & splash screens
 
 `frontend/resources/icon.svg` is the 1024×1024 source (the app's dumbbell glyph on the

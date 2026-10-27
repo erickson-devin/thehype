@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest'
-import { decideBack, makeBackHandler, EXIT_WINDOW } from './back.js'
+import { afterEach, describe, expect, it } from 'vitest'
+import { decideBack, makeBackHandler, setBackOverride, getBackOverride, EXIT_WINDOW } from './back.js'
 
 // Back on Android has to serve three layers with one event: the sheet stack on top, the
 // page history under it, and — because a registered listener stops the plugin from ever
@@ -21,6 +21,49 @@ describe('decideBack', () => {
   it('arms the exit at the bottom of the stack, and exits on the second press', () => {
     expect(decideBack({ top: undefined, canGoBack: false, exitArmed: false })).toBe('arm-exit')
     expect(decideBack({ top: undefined, canGoBack: false, exitArmed: true })).toBe('exit')
+  })
+
+  it('lets an override beat history, but a sheet beats the override', () => {
+    const fn = () => {}
+    expect(decideBack({ top: undefined, canGoBack: true, exitArmed: false, override: fn })).toBe('override')
+    expect(decideBack({ top: { id: 's1' }, canGoBack: true, exitArmed: false, override: fn })).toBe('sheet')
+    expect(decideBack({ top: { id: 's1', locked: true }, canGoBack: true, exitArmed: false, override: fn })).toBe('ignore')
+  })
+
+  it('arms then exits at the root even with history behind it', () => {
+    expect(decideBack({ top: undefined, canGoBack: true, exitArmed: false, atRoot: true })).toBe('arm-exit')
+    expect(decideBack({ top: undefined, canGoBack: true, exitArmed: true, atRoot: true })).toBe('exit')
+  })
+})
+
+describe('the back override', () => {
+  afterEach(() => setBackOverride(null))
+
+  it('the remover only clears its own function', () => {
+    const a = () => {}, b = () => {}
+    const offA = setBackOverride(a)
+    const offB = setBackOverride(b)
+    offA()
+    expect(getBackOverride()).toBe(b)
+    offB()
+    expect(getBackOverride()).toBeNull()
+  })
+
+  it('the handler calls the override instead of walking history', () => {
+    let called = 0
+    setBackOverride(() => { called++ })
+    const h = harness()
+    expect(h.handler({ canGoBack: true })).toBe('override')
+    expect(called).toBe(1)
+    expect(h.calls.back).toBe(0)
+  })
+
+  it('the handler takes isRoot: arm, then exit, despite history', () => {
+    let exits = 0, toasts = 0
+    const handler = makeBackHandler({ getSheets: () => [], closeSheet() {}, toast: () => { toasts++ }, goBack() {}, exit: () => { exits++ }, isRoot: () => true })
+    expect(handler({ canGoBack: true })).toBe('arm-exit')
+    expect(handler({ canGoBack: true })).toBe('exit')
+    expect([exits, toasts]).toEqual([1, 1])
   })
 })
 
@@ -99,5 +142,17 @@ describe('makeBackHandler', () => {
   it('treats a missing event payload as no history', () => {
     const h = harness()
     expect(h.handler()).toBe('arm-exit')
+  })
+
+  it('at #/tv in TV mode, back with history arms then exits (the wiring initBackButton uses)', () => {
+    const tv = true
+    location.hash = '#/tv'
+    const isRoot = () => !!tv && location.hash.split('?')[0] === '#/tv'
+    let back = 0, exits = 0
+    const handler = makeBackHandler({ getSheets: () => [], closeSheet() {}, toast() {}, goBack: () => { back++ }, exit: () => { exits++ }, isRoot })
+    expect(handler({ canGoBack: true })).toBe('arm-exit')
+    expect(handler({ canGoBack: true })).toBe('exit')
+    expect([back, exits]).toEqual([0, 1])
+    location.hash = ''
   })
 })

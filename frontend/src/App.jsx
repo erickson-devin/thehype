@@ -17,6 +17,7 @@ import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { MOBILE } from './lib/mobile.js'
+import { detectTv, applyTvMode } from './lib/tv.js'
 import { isAutoRoutine } from './lib/interval-plan.js'
 import { loadBuiltinPlaylist } from './lib/music-dom.js'
 import { exitWorkoutEdit, startFlow } from './sheets.jsx'
@@ -32,6 +33,7 @@ import { openDeviceLinkRedeem } from './components/Passkeys.jsx'
 import Login from './views/Login.jsx'
 import MobileOnboarding from './views/MobileOnboarding.jsx'
 import Home from './views/Home.jsx'
+import TvHome from './views/TvHome.jsx'
 import CheckIn from './views/CheckIn.jsx'
 import Plan from './views/Plan.jsx'
 import RoutineEdit from './views/RoutineEdit.jsx'
@@ -88,6 +90,15 @@ function Shell() {
   useEffect(() => { if (hasAuto) loadBuiltinPlaylist() }, [hasAuto])
   const isGuest = useStore(s => s.isGuest())
   const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
+  // Android TV (lib/tv.js): the remote-driven start screen is where the app opens, once. Leaving it
+  // for the full app is a choice, so it does not pull the user back.
+  const tv = useUI(s => !!s.tv)
+  const tvLanded = useRef(false)
+  useEffect(() => {
+    if (!tv || tvLanded.current) return
+    tvLanded.current = true
+    if (loc.pathname === '/' || loc.pathname === '/home') navigate('/tv', { replace: true })
+  }, [tv, loc.pathname, navigate])
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes
   useEffect(() => { setNav(navigate) }, [navigate])
   const lastEditPath = useRef(loc.pathname)
@@ -192,7 +203,7 @@ function Shell() {
   }, [inWorkout])
   // The chat owns the bottom of the screen as well: its composer sits where the tabs would be.
   // The first-launch card has no tabs either: they changed the route behind it.
-  const noTabs = inWorkout || loc.pathname === '/coach' || needsMobileOnboarding
+  const noTabs = inWorkout || loc.pathname === '/coach' || needsMobileOnboarding || (tv && loc.pathname === '/tv')
 
   const authed = user || isGuest
   if (!ready && !authed) return (
@@ -212,12 +223,13 @@ function Shell() {
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
             <Routes>
               <Route path="/home" element={<Home />} />
+              <Route path="/tv" element={<TvHome />} />
               {/* Gym check-in — switched off in Settings, the route falls through to the
                   catch-all redirect below. */}
               {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
-              <Route path="/workout" element={S.active?.auto && !S.active.editingWorkoutId && !S.active.backfill ? <IntervalPlayer /> : <Workout />} />
+              <Route path="/workout" element={tv && !S.active ? <Navigate to="/tv" replace /> : S.active?.auto && !S.active.editingWorkoutId && !S.active.backfill ? <IntervalPlayer /> : <Workout />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/history" element={<History />} />
               <Route path="/library" element={<Library />} />
@@ -235,7 +247,7 @@ function Shell() {
               <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
               <Route path="/coach/setup" element={<CoachSetup />} />
               <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
-              <Route path="*" element={<Navigate to="/home" replace />} />
+              <Route path="*" element={<Navigate to={tv ? '/tv' : '/home'} replace />} />
             </Routes>
           )}
         </ErrorBoundary>
@@ -256,6 +268,8 @@ function Shell() {
 export default function App() {
   const boot = useStore(s => s.boot)
   useEffect(() => { boot() }, [boot])
+  // Android TV: asked once; the layout class and the remote's focus handling follow the answer.
+  useEffect(() => { detectTv().then(on => { applyTvMode(on); useUI.setState({ tv: on }) }) }, [])
   // Android system back — sheet, then page, then press-again-to-exit (see lib/back.js)
   useEffect(() => {
     let stop = null, gone = false

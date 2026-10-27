@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useUI } from '../store/useUI.js'
 import { keyboardOpen } from '../lib/viewport-guard.js'
+import { pickInitialFocus } from '../lib/sheet-focus.js'
 
 // Putting the page back after a sheet closes takes up to three goes (see the un-pin below): now,
 // next frame, and once the keyboard's dismiss animation is over. Anything else that wants to
@@ -201,6 +202,33 @@ export default function Modals() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [sheets, closeSheet])
+
+  // TV: the d-pad needs a focused control to start from. A new sheet takes focus (its own pick,
+  // see lib/sheet-focus.js) and the control that had it comes back when the sheet closes.
+  // Elsewhere nothing changes.
+  const focusWas = useRef(new Map())
+  useEffect(() => {
+    const was = focusWas.current
+    const live = new Set(sheets.map(s => s.id))
+    for (const [id, el] of [...was]) {
+      if (live.has(id)) continue
+      was.delete(id)
+      try { if (el && el.isConnected !== false) el.focus() } catch (e) { /* the control is gone */ }
+    }
+    if (!useUI.getState().tv) return
+    const added = sheets.filter(s => !was.has(s.id))
+    if (!added.length) return
+    const a = document.activeElement
+    for (const s of added) was.set(s.id, a && a !== document.body ? a : null)
+    const newest = added[added.length - 1]
+    const raf = window.requestAnimationFrame || (fn => setTimeout(fn, 0))
+    raf(() => {
+      const rootEl = document.getElementById('modal-root')
+      const last = rootEl?.lastElementChild
+      const el = last && pickInitialFocus(last)
+      if (el && useUI.getState().sheets.some(s => s.id === newest.id)) { try { el.focus() } catch (e) { /* not focusable */ } }
+    })
+  }, [sheets])
 
   // lock the page behind any open sheet (iOS-safe)
   useEffect(() => {

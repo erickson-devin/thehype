@@ -930,6 +930,28 @@ body.chips-dragging *{cursor:inherit}
 .ip-media .thumb{width:100%;height:clamp(140px,30vh,320px);border-radius:var(--r-lg);object-fit:contain;display:block}
 .ip-media .thumb-x{font-size:34px}
 
+/* TV mode (html[data-tv], set by lib/tv.js): a 10-foot UI driven by a remote. Focus has to be seen
+   from the sofa, and the page keeps clear of the overscan edge. */
+html[data-tv] :focus{outline:3px solid var(--acc);outline-offset:3px;box-shadow:0 0 0 6px color-mix(in srgb,var(--acc) 30%,transparent)}
+html[data-tv] [data-dpad-owner]:focus{outline:none;box-shadow:none}
+html[data-tv] .tv-page{padding:27px 48px}
+html[data-tv] .tv-item{display:flex;align-items:center;gap:16px;width:100%;font-size:22px;padding:18px 20px;border-radius:var(--r-lg);text-align:start}
+html[data-tv] .tv-item:focus{transform:scale(1.03)}
+html[data-tv] .tv-head{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+html[data-tv] .tv-head img,html[data-tv] .tv-head svg{width:48px;height:48px}
+html[data-tv] .tv-list{display:flex;flex-direction:column;gap:12px;max-width:820px}
+html[data-tv] .tv-item .grow{flex:1;min-width:0;display:block}
+html[data-tv] .tv-item .tt{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[data-tv] .tv-item .ss{display:block;font-size:16px;opacity:.65}
+html[data-tv] .tv-tag{font-size:14px;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--acc) 25%,transparent)}
+html[data-tv] .tv-empty{opacity:.65;font-size:20px;padding:32px 0}
+html[data-tv] .tv-foot{display:flex;gap:12px;margin-top:32px}
+html[data-tv] .tv-foot .tv-item{width:auto;font-size:20px}
+html[data-tv] .ip-tv{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center;padding:27px 48px}
+html[data-tv] .ip-tv .ip-media .exmedia img,html[data-tv] .ip-tv .ip-media .exmedia video{height:58vh}
+html[data-tv] .ip-tv .ip-count{font-size:min(26vh,220px)}
+html[data-tv] .ip-tv .ip-hint{opacity:.6;font-size:18px;margin-top:24px}
+
 /* the link to a video or a guide (#246): a quiet action tile under the picture, or in its place.
    A <button>, so the reset of the browser's button look comes first. */
 .exlink-card{

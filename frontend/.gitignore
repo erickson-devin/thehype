@@ -1,0 +1,3 @@
+# Local build settings, e.g. VITE_DEFAULT_SERVER for a TV build (docs/MOBILE.md)
+.env.local
+.env.*.local

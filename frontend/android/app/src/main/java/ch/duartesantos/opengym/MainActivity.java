@@ -2,6 +2,7 @@ package ch.duartesantos.opengym;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.WebView;
 import androidx.core.graphics.Insets;
@@ -18,6 +19,13 @@ public class MainActivity extends BridgeActivity {
     // How much of the page the soft keyboard covers, in CSS pixels; 0 while it is down.
     private float keyboard = 0;
 
+    private Boolean tv;
+
+    private boolean isTv() {
+        if (tv == null) tv = TvModePlugin.detect(this);
+        return tv;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(HealthConnectPlugin.class);
@@ -26,8 +34,43 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(RestAlertPlugin.class);
         registerPlugin(BackupFolderPlugin.class);
         registerPlugin(SystemBarsPlugin.class);
+        registerPlugin(TvModePlugin.class);
         super.onCreate(savedInstanceState);
         passSystemBarsToPage();
+    }
+
+    /**
+     * Television remotes: the Android WebView has no Media Session, so the play/pause, next, fast
+     * forward and stop keys never reach the page as key events. They are consumed here (TV only, so
+     * a phone's headset buttons are left alone) and handed on once as 'opengym:media-key', which the
+     * follow-along player listens for.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        String key = mediaKeyName(event.getKeyCode());
+        if (key != null && isTv() && bridge != null && bridge.getWebView() != null) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                bridge.getWebView().evaluateJavascript(mediaKeyScript(key), null);
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    static String mediaKeyName(int code) {
+        switch (code) {
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE: return "MediaPlayPause";
+            case KeyEvent.KEYCODE_MEDIA_PLAY: return "MediaPlay";
+            case KeyEvent.KEYCODE_MEDIA_PAUSE: return "MediaPause";
+            case KeyEvent.KEYCODE_MEDIA_NEXT: return "MediaTrackNext";
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: return "MediaFastForward";
+            case KeyEvent.KEYCODE_MEDIA_STOP: return "MediaStop";
+            default: return null;
+        }
+    }
+
+    static String mediaKeyScript(String key) {
+        return "window.dispatchEvent(new CustomEvent('opengym:media-key',{detail:{key:'" + key + "'}}))";
     }
 
     /**

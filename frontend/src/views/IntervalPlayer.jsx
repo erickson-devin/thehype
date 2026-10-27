@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
+import { useUI } from '../store/useUI.js'
+import { nav } from '../lib/nav.js'
+import { setBackOverride } from '../lib/back.js'
+import { mediaKeyAction, playerKeyAction } from '../lib/player-keys.js'
 import { exOr, figureOf, imgSrc, isCustomEx } from '../lib/exercises.js'
 import { mediaOf } from '../lib/media-refs.js'
 import Media, { Thumb } from '../components/Media.jsx'
@@ -9,7 +13,7 @@ import { unlock } from '../lib/sound.js'
 import { bestWeightForEntry } from '../lib/history.js'
 import { buildIntervals, intervalSettings, nextWork, remainingSec } from '../lib/interval-plan.js'
 import { speak, stopSpeaking, countdownBeep } from '../lib/interval-audio.js'
-import { finishWorkout } from '../sheets.jsx'
+import { confirmSheet, finishWorkout, finishWorkoutSheet, menuSheet } from '../sheets.jsx'
 import { drawHype, hypeEventsFor, hypeMarks, initHype } from '../lib/hype-lines.js'
 import { awayDecision, elapsedOf, endedWork, pauseClock, positionAt, resumeClock, skipBlock, startClock } from '../lib/interval-schedule.js'
 import { bindMediaActions, mediaMetadataFor, positionStateFor, publishMedia } from '../lib/media-session.js'
@@ -44,6 +48,9 @@ export default function IntervalPlayer() {
   const A = useStore(s => s.S.active)
   const sound = useStore(s => s.S.sound)
   const gifOff = useStore(s => s.S.gifSize === 'off')   // Settings → Exercise animations: Hidden
+  const tv = useUI(s => !!s.tv)   // TV mode: remote keys, a two-column 10-foot layout (index.css .ip-tv)
+  const rootRef = useRef(null)
+  const doneRef = useRef(null)
 
   // Flattened once, when the player opens: [Work, Rest, Work, …]. Later edits to the routine do
   // not move a session that is already running.
@@ -170,13 +177,86 @@ export default function IntervalPlayer() {
     lastPub.current = { idx, paused, at: now }
     publishMedia(mediaMetadataFor(blocks, idx, { nameOf, artworkOf, t, sessionName }), { playing: !paused, position: positionStateFor(blocks[idx], left * 1000) })
   }, [idx, paused, left]) // eslint-disable-line react-hooks/exhaustive-deps
+  const musicRow = musicSource({ plan: musicPlan(useStore.getState().S), auto: true, enabled: true, hasPlaylist: !!builtinPlaylist()?.length }) === 'builtin'
+  const toggleMusic = () => {
+    if (music.playing) { pauseMusic({ user: true }); update(s => { s.builtinMusic = false }); return }
+    update(s => { s.builtinMusic = true })
+    if (music.started && !music.failed && !music.blocked) resumeMusic({ user: true }); else startBuiltinMusic()   // inside this tap
+  }
+
+  // Ends the session. Stop the clock first: the finish sheet can be cancelled, and a running block
+  // must not tick a set or announce a rest behind it. On a TV the sheet also offers Discard (there
+  // is no screen to reach the workout's own menu from).
+  const endWorkout = () => {
+    stopSpeaking()
+    pauseMusic()
+    if (!pausedRef.current) { clock.current = pauseClock(clock.current, Date.now()); setPaused(true) }
+    if (!tv) { finishWorkout(); return }
+    finishWorkoutSheet({
+      onDiscard: () => confirmSheet({
+        title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true,
+        onConfirm: () => { update(s => { s.active = null }); nav('/tv') },
+      }),
+    })
+  }
+
+  // The remote's menu key (and Down): what the phone screen has as buttons, as one list.
+  const openMore = () => menuSheet({
+    title: sessionName,
+    items: [
+      { icon: muted ? 'bellSlash' : 'bell', label: muted ? t('Unmute') : t('Mute'), onClick: () => setMuted(m => !m) },
+      musicRow && { icon: 'headphones', label: music.playing ? t('Music off') : t('Music on'), onClick: toggleMusic },
+      musicRow && music.started && !music.failed && { icon: 'skipForward', label: t('Next track'), onClick: nextTrack },
+      { icon: 'skipForward', label: t('Skip'), onClick: () => actions.current.skip() },
+      { icon: 'flag', danger: true, label: t('End workout'), onClick: () => actions.current.endWorkout() },
+    ],
+  })
+
   const actions = useRef({})
-  actions.current = { togglePause, skip }
+  actions.current = { togglePause, skip, endWorkout, more: openMore }
   useEffect(() => bindMediaActions({
     onPlay: () => { if (pausedRef.current) actions.current.togglePause() },
     onPause: () => { if (!pausedRef.current) actions.current.togglePause() },
     onNext: () => actions.current.skip(),
   }), [])
+
+  // Keyboard, TV remote and native media keys (lib/player-keys.js). Read through refs and the
+  // store so one listener serves every render.
+  useEffect(() => {
+    const run = action => {
+      if (!action) return false
+      const a = actions.current
+      if (action === 'toggle') a.togglePause()
+      else if (action === 'skip') a.skip()
+      else if (action === 'more') a.more()
+      else if (action === 'end') a.endWorkout()
+      return true
+    }
+    const onKey = e => {
+      if (finishedRef.current) return
+      const ui = useUI.getState()
+      const action = playerKeyAction(e, { paused: pausedRef.current, rtl: document.documentElement.dir === 'rtl', tv: !!ui.tv, sheetOpen: ui.sheets.length > 0 })
+      if (run(action)) e.preventDefault()
+    }
+    const onMedia = e => {
+      if (finishedRef.current) return
+      const action = mediaKeyAction(e.detail?.key, { paused: pausedRef.current })
+      if (action === 'end' && useUI.getState().sheets.length) return
+      run(action)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('opengym:media-key', onMedia)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('opengym:media-key', onMedia)
+    }
+  }, [])
+
+  // TV: Back ends the workout (it asks first) instead of leaving the page; the screen holds focus
+  // itself so the remote's keys reach the window handler above, not a stray button.
+  useEffect(() => tv ? setBackOverride(() => actions.current.endWorkout()) : undefined, [tv])
+  useEffect(() => { if (tv) rootRef.current?.focus() }, [tv])
+  useEffect(() => { if (tv && finished) doneRef.current?.focus() }, [tv, finished])
 
   // Best effort at mount (the tap that opened the player may still count as a gesture); Pause
   // unlocks again, inside a tap that certainly does.
@@ -211,7 +291,7 @@ export default function IntervalPlayer() {
   if (!blocks.length) {
     return <div className="narrow" style={{ padding: 24, textAlign: 'center' }}>
       <h3>{t('Nothing left to play')}</h3>
-      <button className="btn primary" onClick={() => finishWorkout()}>{t('Finish workout')}</button>
+      <button className="btn primary" ref={doneRef} onClick={() => finishWorkout()}>{t('Finish workout')}</button>
     </div>
   }
 
@@ -219,15 +299,8 @@ export default function IntervalPlayer() {
   if (finished) {
     return <div className="narrow" style={{ padding: 24, textAlign: 'center' }}>
       <h3>{t('Workout complete')}</h3>
-      <button className="btn primary" onClick={() => finishWorkout()}>{t('Finish workout')}</button>
+      <button className="btn primary" ref={doneRef} onClick={() => finishWorkout()}>{t('Finish workout')}</button>
     </div>
-  }
-
-  const musicRow = musicSource({ plan: musicPlan(useStore.getState().S), auto: true, enabled: true, hasPlaylist: !!builtinPlaylist()?.length }) === 'builtin'
-  const toggleMusic = () => {
-    if (music.playing) { pauseMusic({ user: true }); update(s => { s.builtinMusic = false }); return }
-    update(s => { s.builtinMusic = true })
-    if (music.started && !music.failed && !music.blocked) resumeMusic({ user: true }); else startBuiltinMusic()   // inside this tap
   }
 
   const resting = block?.kind === 'rest'
@@ -240,29 +313,57 @@ export default function IntervalPlayer() {
   const shownId = resting || ready ? coming?.id : block.id
   const shownEx = shownId ? exOr(shownId) : null
   const picture = !gifOff && !!shownEx && hasMedia(shownEx)
+  // On a TV the buttons are not tab stops: the screen takes the remote's keys itself (the window
+  // handler above), and a focused button would swallow OK.
+  const ti = tv ? -1 : undefined
 
-  return <div role="main" aria-label={t('Follow-along workout')} style={{
+  const rootStyle = {
     position: 'fixed', inset: 0, zIndex: 50, color: 'var(--label)',
     background: `radial-gradient(120% 60% at 50% 38%, color-mix(in srgb, ${accent} 16%, var(--bg)), var(--bg) 72%)`,
+  }
+  const status = <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <span className="small dim">{t('Set {0} of {1}', setNo, workBlocks.length)} · {mmss(remainingSec(blocks, idx, left))} {t('left')}</span>
+    <button className="iconbtn" tabIndex={ti} onClick={() => setMuted(m => !m)} aria-pressed={muted}
+      aria-label={muted ? t('Unmute') : t('Mute')}><Icon name={muted ? 'bellSlash' : 'bell'} /></button>
+  </div>
+  const labelEl = <div style={{ fontSize: 18, letterSpacing: '.12em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>{label}</div>
+  const nameEl = <div style={{ fontSize: 28, fontWeight: 700, margin: '6px 0 0' }}>{resting ? t('Get ready') : nameOf(shownId)}</div>
+  const mediaEl = picture && <div className="ip-media" key={shownId}>
+    {reducedMotion() ? <Thumb ex={shownEx} /> : <Media ex={shownEx} />}
+  </div>
+  const countStyle = { lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: accent, textShadow: `0 0 48px color-mix(in srgb, ${accent} 55%, transparent)` }
+  const upNextEl = <div className="dim" style={{ fontSize: 18 }}>
+    {ready ? t('First up: {0}', nameOf(coming.id)) : coming ? t('Up next: {0}', nameOf(coming.id)) : t('Last one!')}
+  </div>
+
+  if (tv) {
+    const countEl = <div className="ip-count" aria-live="off" style={{ ...countStyle, margin: '8px 0' }}>{left}</div>
+    return <div ref={rootRef} role="main" aria-label={t('Follow-along workout')} className="ip-root ip-tv" tabIndex={-1} data-dpad-owner="" style={rootStyle}>
+      <div>{picture ? mediaEl : countEl}</div>
+      <div>
+        {status}
+        {labelEl}
+        {nameEl}
+        {picture && countEl}
+        {upNextEl}
+        <div className="ip-hint">{t('OK Pause · ▶ Skip · ▼ More · Back End')}</div>
+      </div>
+    </div>
+  }
+
+  return <div className="ip-root" role="main" aria-label={t('Follow-along workout')} style={{
+    ...rootStyle,
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
     padding: 'max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom))', textAlign: 'center',
   }}>
-    <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span className="small dim">{t('Set {0} of {1}', setNo, workBlocks.length)} · {mmss(remainingSec(blocks, idx, left))} {t('left')}</span>
-      <button className="iconbtn" onClick={() => setMuted(m => !m)} aria-pressed={muted}
-        aria-label={muted ? t('Unmute') : t('Mute')}><Icon name={muted ? 'bellSlash' : 'bell'} /></button>
-    </div>
+    {status}
 
     <div style={{ width: '100%', maxWidth: 420 }}>
-      <div style={{ fontSize: 18, letterSpacing: '.12em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, margin: '6px 0 0' }}>{resting ? t('Get ready') : nameOf(shownId)}</div>
-      {picture && <div className="ip-media" key={shownId}>
-        {reducedMotion() ? <Thumb ex={shownEx} /> : <Media ex={shownEx} />}
-      </div>}
-      <div aria-live="off" style={{ fontSize: picture ? 'min(32vw, 18vh, 200px)' : 'min(40vw, 220px)', lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: accent, margin: picture ? '8px 0' : '12px 0', textShadow: `0 0 48px color-mix(in srgb, ${accent} 55%, transparent)` }}>{left}</div>
-      <div className="dim" style={{ fontSize: 18 }}>
-        {ready ? t('First up: {0}', nameOf(coming.id)) : coming ? t('Up next: {0}', nameOf(coming.id)) : t('Last one!')}
-      </div>
+      {labelEl}
+      {nameEl}
+      {mediaEl}
+      <div className="ip-count" aria-live="off" style={{ ...countStyle, fontSize: picture ? 'min(32vw, 18vh, 200px)' : 'min(40vw, 220px)', margin: picture ? '8px 0' : '12px 0' }}>{left}</div>
+      {upNextEl}
     </div>
 
     <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -272,14 +373,7 @@ export default function IntervalPlayer() {
       </button>
       <div style={{ display: 'flex', gap: 12 }}>
         <button className="btn ghost dim" style={{ flex: 1 }} onClick={skip}>{t('Skip')}</button>
-        <button className="btn ghost dim" style={{ flex: 1 }} onClick={() => {
-          // Stop the clock first: the finish sheet can be cancelled, and a running block must not
-          // tick a set or announce a rest behind it.
-          stopSpeaking()
-          pauseMusic()
-          if (!paused) { clock.current = pauseClock(clock.current, Date.now()); setPaused(true) }
-          finishWorkout()
-        }}>{t('End workout')}</button>
+        <button className="btn ghost dim" style={{ flex: 1 }} onClick={endWorkout}>{t('End workout')}</button>
       </div>
       {musicRow && <div className="ip-music" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button className="iconbtn" onClick={toggleMusic} aria-pressed={music.playing} aria-label={music.playing ? t('Music off') : t('Music on')}>

@@ -215,6 +215,7 @@ function endTone(enabled, kind) {
 }
 
 export const useUI = create((set, get) => ({
+  tv: false,           // TV mode: set at boot by lib/tv.js; drives the 10-foot layout, remote keys and spatial navigation
   sheets: [],          // { id, render:(close)=>JSX, kind:'sheet'|'center', locked }
   toastMsg: '',
   toastAction: null,   // { label, run, id } while the toast offers an action (Undo)

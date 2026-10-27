@@ -16,14 +16,27 @@ import { t } from './i18n.js'
 // How long a first back press stays armed as "press again to exit" (the toast shows 2.2s).
 export const EXIT_WINDOW = 2000
 
+// A screen that owns back while it is mounted (the TV follow-along player: back ends the
+// workout rather than leaving the page). A sheet on top still wins. Returns a remover that only
+// clears its own function, so a screen unmounting late cannot unset its successor's.
+let override = null
+export function setBackOverride(fn) {
+  override = fn
+  return () => { if (override === fn) override = null }
+}
+export const getBackOverride = () => override
+
 // What a back press means, given what is on screen. Pure, so the table below is testable.
-export function decideBack({ top, canGoBack, exitArmed }) {
+// `atRoot` (the TV home): there is nowhere to go back to, whatever the history says.
+export function decideBack({ top, canGoBack, exitArmed, override = null, atRoot = false }) {
   if (top) return top.locked ? 'ignore' : 'sheet'   // a locked sheet swallows back on purpose
+  if (override) return 'override'
+  if (atRoot) return exitArmed ? 'exit' : 'arm-exit'
   if (canGoBack) return 'history'                   // a page/tab we pushed ourselves
   return exitArmed ? 'exit' : 'arm-exit'
 }
 
-export function makeBackHandler({ getSheets, closeSheet, toast, goBack, exit, now = Date.now }) {
+export function makeBackHandler({ getSheets, closeSheet, toast, goBack, exit, isRoot = () => false, now = Date.now }) {
   let armedAt = -Infinity
   return (ev = {}) => {
     const sheets = getSheets()
@@ -31,9 +44,12 @@ export function makeBackHandler({ getSheets, closeSheet, toast, goBack, exit, no
       top: sheets[sheets.length - 1],
       canGoBack: !!ev.canGoBack,
       exitArmed: now() - armedAt < EXIT_WINDOW,
+      override,
+      atRoot: !!isRoot(),
     })
     if (action !== 'arm-exit') armedAt = -Infinity
     if (action === 'sheet') closeSheet(sheets[sheets.length - 1].id)
+    else if (action === 'override') override?.()
     else if (action === 'history') goBack()
     else if (action === 'arm-exit') { armedAt = now(); toast(t('Press back again to exit')) }
     else if (action === 'exit') exit()
@@ -53,6 +69,8 @@ export async function initBackButton() {
       toast: msg => useUI.getState().toast(msg),
       goBack: () => window.history.back(),
       exit: () => App.exitApp(),
+      // The TV home is the root: back there arms and exits, whatever the history holds.
+      isRoot: () => !!useUI.getState().tv && location.hash.split('?')[0] === '#/tv',
     })
     const sub = await App.addListener('backButton', handler)
     return () => sub.remove()

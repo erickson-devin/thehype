@@ -24,6 +24,10 @@ export function normalizeServerUrl(raw) {
   } catch (e) { return null }
 }
 
+// A build can carry its server's address (VITE_DEFAULT_SERVER in frontend/.env.local), so the connect
+// screen of an app sideloaded onto a TV, where typing is slow, starts with it filled in.
+export const defaultServerUrl = (env = import.meta.env) => normalizeServerUrl(env?.VITE_DEFAULT_SERVER) || ''
+
 export async function loadRemote() {
   return loadRemoteFile()
 }

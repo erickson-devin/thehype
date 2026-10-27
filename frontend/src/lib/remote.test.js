@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
-import { normalizeServerUrl } from './remote.js'
+import { normalizeServerUrl, defaultServerUrl } from './remote.js'
 
 // The pairing flow lives or dies on this being forgiving about what someone types on a phone
 // keyboard, while still refusing input that can't possibly be a server address.
@@ -23,5 +23,15 @@ describe('normalizeServerUrl', () => {
     for (const v of ['', '   ', null, undefined, 'not a url at all!!']) {
       expect(normalizeServerUrl(v)).toBe(null)
     }
+  })
+})
+
+describe('defaultServerUrl', () => {
+  it('is the build-time server, normalized', () => {
+    expect(defaultServerUrl({ VITE_DEFAULT_SERVER: 'http://192.168.1.50:8080/' })).toBe('http://192.168.1.50:8080')
+  })
+  it('is empty when unset or unusable', () => {
+    expect(defaultServerUrl({})).toBe('')
+    expect(defaultServerUrl({ VITE_DEFAULT_SERVER: 'not a url' })).toBe('')
   })
 })

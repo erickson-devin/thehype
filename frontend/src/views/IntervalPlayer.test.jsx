@@ -28,12 +28,14 @@ vi.mock('../lib/music-dom.js', () => ({
   pauseMusic: vi.fn(), resumeMusic: vi.fn(), nextTrack: vi.fn(), startBuiltinMusic: vi.fn(), stopMusic: vi.fn(),
 }))
 vi.mock('../lib/sound.js', () => ({ unlock: vi.fn() }))
-vi.mock('../sheets.jsx', () => ({ finishWorkout: vi.fn() }))
+vi.mock('../sheets.jsx', () => ({ finishWorkout: vi.fn(), finishWorkoutSheet: vi.fn(), menuSheet: vi.fn(), confirmSheet: vi.fn() }))
 
 import { speak, countdownBeep } from '../lib/interval-audio.js'
 import { unlock } from '../lib/sound.js'
 import { pauseMusic, resumeMusic, startBuiltinMusic, stopMusic } from '../lib/music-dom.js'
-import { finishWorkout } from '../sheets.jsx'
+import { finishWorkout, finishWorkoutSheet, menuSheet } from '../sheets.jsx'
+import { useUI } from '../store/useUI.js'
+import { getBackOverride, setBackOverride } from '../lib/back.js'
 import { getLang } from '../lib/i18n.js'
 import { HYPE_LINES } from '../lib/hype-lines.js'
 import { positionAt, startClock } from '../lib/interval-schedule.js'
@@ -406,5 +408,67 @@ describe('workout music', () => {
       act(() => { h('play')() })
       expect(resumeMusic).toHaveBeenCalled()
     } finally { delete navigator.mediaSession; delete globalThis.MediaMetadata }
+  })
+})
+
+describe('hardware keys and the TV screen', () => {
+  const key = (k, extra = {}) => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...extra })) })
+  const counter = () => host.querySelector('.ip-count').textContent
+  afterEach(() => { useUI.setState({ tv: false, sheets: [] }); setBackOverride(null) })
+
+  it('Enter pauses the clock and the music; the countdown stops', async () => {
+    await tick(2_000)
+    key('Enter')
+    expect(pauseMusic).toHaveBeenCalled()
+    const frozen = counter()
+    await tick(3_000)
+    expect(counter()).toBe(frozen)
+  })
+
+  it('ArrowRight skips the block without logging its set', () => {
+    key('ArrowRight')
+    expect(host.querySelector('div[style*="letter-spacing"]').textContent).toBe('Rest')
+    expect(mocks.S.active.entries[0].sets.every(x => !x.done)).toBe(true)
+  })
+
+  it('a native MediaPlayPause toggles pause and play', async () => {
+    act(() => { window.dispatchEvent(new CustomEvent('opengym:media-key', { detail: { key: 'MediaPlayPause' } })) })
+    expect(pauseMusic).toHaveBeenCalled()
+    act(() => { window.dispatchEvent(new CustomEvent('opengym:media-key', { detail: { key: 'MediaPlayPause' } })) })
+    expect(resumeMusic).toHaveBeenCalled()
+  })
+
+  it('ignores keys while a sheet is open', () => {
+    useUI.setState({ sheets: [{ id: 's1' }] })
+    key('ArrowRight')
+    expect(host.querySelector('div[style*="letter-spacing"]').textContent).toBe('Work')
+  })
+
+  it('off a TV the End button still calls finishWorkout, and Escape does nothing', () => {
+    key('Escape')
+    expect(finishWorkoutSheet).not.toHaveBeenCalled()
+    expect(getBackOverride()).toBeNull()
+    act(() => { button('End workout').click() })
+    expect(finishWorkout).toHaveBeenCalledTimes(1)
+    expect(finishWorkoutSheet).not.toHaveBeenCalled()
+  })
+
+  it('on a TV: the two-column layout, the key hint, and Back opens the finish sheet', () => {
+    act(() => { useUI.setState({ tv: true }) })
+    expect(host.querySelector('.ip-tv')).not.toBeNull()
+    expect(host.textContent).toContain('OK Pause')
+    expect(typeof getBackOverride()).toBe('function')
+    act(() => { getBackOverride()() })
+    expect(finishWorkoutSheet).toHaveBeenCalledTimes(1)
+    expect(finishWorkout).not.toHaveBeenCalled()
+    expect(typeof finishWorkoutSheet.mock.calls[0][0].onDiscard).toBe('function')
+  })
+
+  it('on a TV: ArrowDown opens the menu and Escape ends the workout', () => {
+    act(() => { useUI.setState({ tv: true }) })
+    key('ArrowDown')
+    expect(menuSheet).toHaveBeenCalledTimes(1)
+    key('Escape')
+    expect(finishWorkoutSheet).toHaveBeenCalledTimes(1)
   })
 })

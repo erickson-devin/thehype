@@ -7,7 +7,7 @@ import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
 import { Button } from '../components/ui.jsx'
 import { askAddDeviceData } from '../sheets.jsx'
-import { normalizeServerUrl } from '../lib/remote.js'
+import { normalizeServerUrl, defaultServerUrl } from '../lib/remote.js'
 import { loadCfAccess, saveCfAccess } from '../lib/cf-access.js'
 import Logo from '../components/Logo.jsx'
 
@@ -80,7 +80,9 @@ export function CfAccessSheet({ close, server = '' }) {
 // the sheet says that what the phone kept is merged, not replaced.
 export function ConnectSheet({ close, initialUrl = '', again = false }) {
   const { connectToServer } = useStore()
-  const [url, setUrl] = useState(initialUrl)
+  // A build's own server address (lib/remote.js) fills the field when nothing else does.
+  const start = initialUrl || defaultServerUrl()
+  const [url, setUrl] = useState(start)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   // Why the last try failed, under the fields: a toast is gone in two seconds, too soon to read
@@ -88,7 +90,7 @@ export function ConnectSheet({ close, initialUrl = '', again = false }) {
   const [error, setError] = useState('')
   const ref = useRef(null)
   const codeRef = useRef(null)
-  useEffect(() => { setTimeout(() => (initialUrl ? codeRef : ref).current?.focus(), 250) }, [])
+  useEffect(() => { setTimeout(() => (start ? codeRef : ref).current?.focus(), 250) }, [])
   const go = async () => {
     if (!url.trim() || !code.trim()) { useUI.getState().toast(t('Enter your server address and the code')); return }
     setBusy(true)
@@ -126,14 +128,16 @@ export default function MobileOnboarding() {
     <Logo />
     <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-.028em', margin: '10px 0 4px' }}>The Hype</h1>
   </>
+  // On a TV typing is slow: connecting to the server is the way in, and the local mode is the aside.
+  const tv = useUI(s => !!s.tv)
+  const localBtn = primary => <Button variant={primary ? 'primary' : undefined} icon="lock" onClick={() => chooseLocalMode()}>{t('Use on this device')}</Button>
+  const connectBtn = primary => <Button variant={primary ? 'primary' : undefined} icon="cloud" onClick={() => useUI.getState().openSheet(close => <ConnectSheet close={close} />)}>{t('Connect to my server')}</Button>
   const wrap = { display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '78vh', textAlign: 'center' }
   return (
     <div className="narrow" style={wrap}>
       {head}
       <div className="muted" style={{ marginBottom: 34 }}>{t('How do you want to use The Hype?')}</div>
-      <Button variant="primary" icon="lock" onClick={() => chooseLocalMode()}>{t('Use on this device')}</Button>
-      <div style={{ height: 10 }} />
-      <Button icon="cloud" onClick={() => useUI.getState().openSheet(close => <ConnectSheet close={close} />)}>{t('Connect to my server')}</Button>
+      {tv ? <>{connectBtn(true)}<div style={{ height: 10 }} />{localBtn(false)}</> : <>{localBtn(true)}<div style={{ height: 10 }} />{connectBtn(false)}</>}
       <div className="dim small" style={{ marginTop: 26, lineHeight: 1.5 }}>
         {t('Local keeps everything on this phone. Connecting syncs to your own Hype server instead. You can switch later in Settings.')}
       </div>
