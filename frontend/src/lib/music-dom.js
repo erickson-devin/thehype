@@ -2,6 +2,8 @@
 // (iOS only lets a tap start audio). Thin on purpose: the decisions live in music-player.js. Nothing
 // touches the DOM at import time. Never touches navigator.mediaSession: IntervalPlayer owns it.
 import { appBase } from './app-base.js'
+import { nativeFetch } from './capacitor-fetch.js'
+import { MOBILE } from './mobile.js'
 import { onSpeech } from './interval-audio.js'
 import { DUCK_RAMP_MS, MUSIC_BASE_VOLUME, duckLevel, loadPlaylist, nextIndex, rampSteps, shuffledOrder, trackUrl } from './music-player.js'
 
@@ -21,20 +23,52 @@ const listeners = new Set()
 
 const emit = () => { for (const cb of [...listeners]) { try { cb() } catch { /* a listener never stops the music */ } } }
 
-/** Fetches the index once. Resolves [] when there is none (404, redirect to the app, bad JSON, offline). Never rejects. */
-export function loadBuiltinPlaylist({ fetchFn = globalThis.fetch, base: appRoot = appBase() } = {}) {
-  if (loading) return loading
-  loading = (async () => {
+let musicBase = ''      // the paired server's origin (mobile build), '' in local mode and on the web
+let loadedRoot = null   // the root the memoised load was made for
+
+/** Where the paired app was told its server is (lib/remote.js, the store's boot). A change drops the cached playlist and reloads it. */
+export function setMusicBase(b) {
+  const next = b ? String(b).replace(/\/?$/, '/') : ''
+  if (next === musicBase) return
+  musicBase = next
+  const had = loading !== null
+  playlist = null; loading = null; loadedRoot = null
+  if (had) { emit(); loadBuiltinPlaylist() }
+}
+
+/** The tracks and the index live in the web image, not the APK: the mobile build streams them from the paired server. */
+export const serverRoot = () => (MOBILE && musicBase ? musicBase : appBase())
+
+/**
+ * Where the <audio> element loads tracks from. The app page is https://localhost, so the WebView blocks a
+ * plain-http server's audio as mixed content (even with MIXED_CONTENT_ALWAYS_ALLOW). On Android the tracks
+ * go through a same-origin path that MusicProxyClient.java streams from the server; everything else is direct.
+ */
+export function musicRoot() {
+  const root = serverRoot()
+  if (!MOBILE || !musicBase || globalThis.Capacitor?.getPlatform?.() !== 'android') return root
+  let u
+  try { u = new URL(root) } catch { return root }
+  if (u.protocol !== 'http:') return root
+  return location.origin + '/_hype_music/' + encodeURIComponent(u.origin) + '/'
+}
+
+/** Fetches the index once per root. Resolves [] when there is none (404, redirect to the app, bad JSON, offline, local mode). Never rejects. */
+export function loadBuiltinPlaylist({ fetchFn = MOBILE ? nativeFetch : globalThis.fetch, base: root = serverRoot() } = {}) {
+  if (loading && loadedRoot === root) return loading
+  loadedRoot = root
+  const mine = (loading = (async () => {
     let list = []
     try {
-      const res = await fetchFn(appRoot + 'workout-music/index.json', { cache: 'no-cache' })
+      const res = await fetchFn(root + 'workout-music/index.json', { cache: 'no-cache' })
       if (res.ok && !res.redirected) list = loadPlaylist(await res.json())
     } catch { list = [] }
+    if (loading !== mine) return list   // the base changed while this was in flight
     playlist = list
     emit()
     return list
-  })()
-  return loading
+  })())
+  return mine
 }
 export const builtinPlaylist = () => playlist
 
@@ -43,7 +77,7 @@ const setSrc = () => {
   const track = current()
   if (!track || !el) return
   const m4a = !!el.canPlayType?.('audio/mp4')
-  el.src = trackUrl(track, appBase(), { m4a })
+  el.src = trackUrl(track, musicRoot(), { m4a })
 }
 const play = () => {
   try {
@@ -156,7 +190,7 @@ export function _resetForTests() {
   rampTimer = null
   if (unsubSpeech) unsubSpeech()
   unsubSpeech = null
-  playlist = null; loading = null; el = null; tracks = []; order = []; pos = 0
+  playlist = null; loading = null; loadedRoot = null; musicBase = ''; el = null; tracks = []; order = []; pos = 0
   started = blocked = failed = userPaused = speaking = false
   errors = 0; base = MUSIC_BASE_VOLUME
   listeners.clear()

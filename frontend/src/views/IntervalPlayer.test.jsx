@@ -22,6 +22,7 @@ vi.mock('../store/useStore.js', () => {
 vi.mock('../lib/interval-audio.js', () => ({ speak: vi.fn(), stopSpeaking: vi.fn(), countdownBeep: vi.fn() }))
 vi.mock('../lib/music-dom.js', () => ({
   builtinPlaylist: () => mocks.playlist,
+  serverRoot: () => '/',
   musicState: () => mocks.music,
   loadBuiltinPlaylist: vi.fn(() => Promise.resolve(mocks.playlist || [])),
   onMusicChange: vi.fn(() => () => {}),
@@ -462,6 +463,14 @@ describe('hardware keys and the TV screen', () => {
     expect(finishWorkoutSheet).toHaveBeenCalledTimes(1)
     expect(finishWorkout).not.toHaveBeenCalled()
     expect(typeof finishWorkoutSheet.mock.calls[0][0].onDiscard).toBe('function')
+  })
+
+  it('on a TV: the playing track, artist and licence are on screen', () => {
+    const TRACK = { title: 'Laserpack', artist: 'Kevin MacLeod', license: 'CC-BY-4.0' }
+    mocks.playlist = [TRACK]; mocks.music = { started: true, playing: true, track: TRACK }
+    act(() => { useUI.setState({ tv: true }) })
+    remount()
+    expect(host.querySelector('.ip-tv').textContent).toContain('Now playing: Laserpack — Kevin MacLeod (CC BY 4.0)')
   })
 
   it('on a TV: ArrowDown opens the menu and Escape ends the workout', () => {

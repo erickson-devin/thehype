@@ -296,7 +296,7 @@ off and `?tv=clear` to forget the choice; then use the arrow keys, Enter and Esc
 
 **Known limits**
 
-- No music in the APK yet.
+- The built-in workout music is not in the APK: it streams from the paired server (nothing plays in local mode). A plain-http server is streamed through the app itself on Android, because the WebView blocks http audio inside the https app page. A server behind Cloudflare Access cannot serve it to the TV, because media elements cannot carry the service-token headers.
 - Exercise clips are 180 px wide, so they look soft on a big screen.
 - On a TV the app speaks through the system text-to-speech engine (Settings → Workout → Voice lists its voices); a TV with no engine installed stays silent.
 

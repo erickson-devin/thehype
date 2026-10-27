@@ -7,6 +7,7 @@
 // browser tab (Settings → "Pair the mobile app") for a bearer token — see api/server.js's
 // /api/pair/create + /api/pair/redeem.
 import { pairRedeem, setRemoteAuth } from './api.js'
+import { setMusicBase } from './music-dom.js'
 import { loadRemoteFile, saveRemoteFile } from './mobile.js'
 import { clearCfAccess } from './cf-access.js'
 
@@ -40,6 +41,7 @@ export async function chooseLocal() {
 export async function forgetRemote() {
   await saveRemoteFile({ mode: 'local' })
   setRemoteAuth('', null)
+  setMusicBase('')
   await clearCfAccess()
 }
 
@@ -49,6 +51,7 @@ export async function forgetRemote() {
 // renewal on a later start.
 export async function renewToken(remote, token) {
   setRemoteAuth(remote.base, token)
+  setMusicBase(remote.base)
   await saveRemoteFile({ ...remote, token })
 }
 
@@ -59,6 +62,7 @@ export async function connect(rawUrl, code) {
   if (!base) throw new Error('Enter a valid server address')
   const { token, user } = await pairRedeem(base, String(code || '').trim())
   setRemoteAuth(base, token)
+  setMusicBase(base)
   await saveRemoteFile({ mode: 'remote', base, token, user })
   return user
 }
