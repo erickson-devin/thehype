@@ -47,8 +47,22 @@ export function pickVoice(voices, lang, chosenURI) {
 // landing late or a long cue running over a short block.
 export const SPEECH_RATE = 0.95
 export const speechTuning = () => ({ rate: SPEECH_RATE, pitch: 1 })
+// Android's engine names its voices like en-us-x-iol-local / de-de-x-deb-network: language, region,
+// the voice's code, local or network. Shown as "English (US) · iol". Its per-language default is
+// named en-US-language, shown as "English (US)".
+const ANDROID_NAME = /^([a-z]{2,3})-([a-z]{2})-(?:x-([a-z0-9]+)-(?:local|network)|language)$/i
+function androidLabel(name) {
+  const m = ANDROID_NAME.exec(name)
+  if (!m) return ''
+  try {
+    const lang = new Intl.DisplayNames(['en'], { type: 'language' }).of(m[1].toLowerCase())
+    return lang ? `${lang} (${m[2].toUpperCase()})${m[3] ? ` · ${m[3]}` : ''}` : ''
+  } catch { return '' }
+}
 /** The picker's title: vendor prefixes and Microsoft's " - Language (Region)" tail dropped. */
 export function voiceLabel(v) {
+  const named = androidLabel(String(v?.name || '').trim())
+  if (named) return named
   const n = String(v?.name || '').replace(/^(Microsoft|Google)\s+/i, '').replace(/\s+-\s+[^-]+\([^)]*\)\s*$/, '').trim()
   return n || String(v?.voiceURI || '')
 }

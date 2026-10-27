@@ -298,7 +298,7 @@ off and `?tv=clear` to forget the choice; then use the arrow keys, Enter and Esc
 
 - No music in the APK yet.
 - Exercise clips are 180 px wide, so they look soft on a big screen.
-- Spoken cues use the voices the TV has installed; some TVs have none or only one.
+- On a TV the app speaks through the system text-to-speech engine (Settings → Workout → Voice lists its voices); a TV with no engine installed stays silent.
 
 ## App icons & splash screens
 
