@@ -190,8 +190,10 @@ export default function IntervalPlayer() {
     const due = hypeEventsFor(blocks, idx, block.sec, fired.current, marks)
     due.forEach(ev => fired.current.add(ev.key))   // muted or not: unmuting never replays one
     if (mutedRef.current) return
+    if (block.kind === 'ready') { speak(t('Get ready. First up: {0}. Starting in {1} seconds.', nameOf(coming?.id), block.sec), getLang()); return }
     if (block.kind === 'rest') { speak(t('Rest for {0} seconds. Next up: {1}', block.sec, nameOf(coming?.id)), getLang()); return }
     countdownBeep(0, !!sound)
+    // After a lead-in (idx 1) the first work block says just "Go!": the exercise was named already.
     const cue = idx === 0 ? t('First up: {0}. Go!', nameOf(block.id)) : t('Go!')
     speak(due.length ? cue + ' ' + hypeText(due[0]) : cue, getLang())   // one utterance: speak() cancels what is playing
   }, [idx]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -229,12 +231,13 @@ export default function IntervalPlayer() {
   }
 
   const resting = block?.kind === 'rest'
-  const accent = resting ? 'var(--hype-2)' : 'var(--acc)'
+  const ready = block?.kind === 'ready'
+  const accent = resting || ready ? 'var(--hype-2)' : 'var(--acc)'
   const workBlocks = blocks.filter(b => b.kind === 'work')
-  const setNo = blocks.slice(0, idx + 1).filter(b => b.kind === 'work').length
-  const label = resting ? t('Rest') : t('Work')
+  const setNo = Math.max(1, blocks.slice(0, idx + 1).filter(b => b.kind === 'work').length)
+  const label = ready ? t('Get ready') : resting ? t('Rest') : t('Work')
   // Work shows the exercise being done; Rest shows the next one, so you are set up before "Go!".
-  const shownId = resting ? coming?.id : block.id
+  const shownId = resting || ready ? coming?.id : block.id
   const shownEx = shownId ? exOr(shownId) : null
   const picture = !gifOff && !!shownEx && hasMedia(shownEx)
 
@@ -252,13 +255,13 @@ export default function IntervalPlayer() {
 
     <div style={{ width: '100%', maxWidth: 420 }}>
       <div style={{ fontSize: 18, letterSpacing: '.12em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, margin: '6px 0 0' }}>{resting ? t('Get ready') : nameOf(block.id)}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, margin: '6px 0 0' }}>{resting ? t('Get ready') : nameOf(shownId)}</div>
       {picture && <div className="ip-media" key={shownId}>
         {reducedMotion() ? <Thumb ex={shownEx} /> : <Media ex={shownEx} />}
       </div>}
       <div aria-live="off" style={{ fontSize: picture ? 'min(32vw, 18vh, 200px)' : 'min(40vw, 220px)', lineHeight: 1, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: accent, margin: picture ? '8px 0' : '12px 0', textShadow: `0 0 48px color-mix(in srgb, ${accent} 55%, transparent)` }}>{left}</div>
       <div className="dim" style={{ fontSize: 18 }}>
-        {coming ? t('Up next: {0}', nameOf(coming.id)) : t('Last one!')}
+        {ready ? t('First up: {0}', nameOf(coming.id)) : coming ? t('Up next: {0}', nameOf(coming.id)) : t('Last one!')}
       </div>
     </div>
 

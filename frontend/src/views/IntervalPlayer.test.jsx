@@ -46,7 +46,7 @@ beforeEach(() => {
   mocks.music = { started: false, playing: false, track: null }
   mocks.S = {
     sound: true,
-    routines: [{ id: 'r1', auto: true, autoWorkSec: 10, autoRestSec: 5, ex: [] }],
+    routines: [{ id: 'r1', auto: true, autoWorkSec: 10, autoRestSec: 5, autoReadySec: 0, ex: [] }],
     active: {
       routineIds: ['r1'],
       entries: [{ id: '0001', target: { sets: 2, reps: 10 }, sets: [{ w: 0, r: 10, done: false }, { w: 0, r: 10, done: false }] }],
@@ -102,6 +102,65 @@ describe('the player’s start cues', () => {
     // the 3-2-1 ticks still run, but every one is asked for silently (enabled = false)
     expect(countdownBeep.mock.calls.length).toBeGreaterThan(0)
     expect(countdownBeep.mock.calls.every(c => c[1] === false)).toBe(true)
+  })
+})
+
+describe('the get-ready lead-in', () => {
+  const label = () => host.querySelector('div[style*="letter-spacing"]').textContent
+  const counter = () => host.querySelector('div[style*="font-weight: 800"]').textContent
+  beforeEach(() => {
+    mocks.S.routines[0].autoReadySec = 20
+    speak.mockClear(); countdownBeep.mockClear()
+    remount()
+  })
+
+  it('opens with a Get ready block that shows the first exercise', () => {
+    expect(label()).toBe('Get ready')
+    expect(host.querySelector('.ip-media video').getAttribute('src')).toMatch(/clip\/0001\.mp4$/)
+    expect(host.textContent).toContain('Set 1 of 2')
+  })
+
+  it('speaks the lead-in once, with no Go! beep yet', () => {
+    expect(said()).toHaveLength(1)
+    expect(said()[0]).toMatch(/^Get ready\. First up: .+\. Starting in 20 seconds\.$/)
+    expect(countdownBeep).not.toHaveBeenCalledWith(0, true)
+  })
+
+  it('says just Go! into the first set, which is not ticked until it is worked', async () => {
+    await tick(20_000)
+    expect(said().at(-1)).toBe('Go!')
+    expect(countdownBeep).toHaveBeenCalledWith(0, true)
+    expect(label()).toBe('Work')
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(false)
+    await tick(10_000)
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
+  })
+
+  it('Skip jumps to the first set and logs nothing', async () => {
+    act(() => { button('Skip').click() })
+    await tick(100)
+    expect(said().at(-1)).toBe('Go!')
+    expect(mocks.S.active.entries[0].sets[0].done).toBe(false)
+    expect(counter()).toBe('10')
+  })
+
+  it('is left out of a resumed session', () => {
+    mocks.S.active.entries[0].sets[0].done = true
+    speak.mockClear()
+    remount()
+    expect(said()[0]).toMatch(/^First up: .+\. Go!$/)
+    expect(label()).toBe('Work')
+  })
+
+  it('shows on the lock screen as Get ready · First up', () => {
+    const ms = { setActionHandler: vi.fn(), setPositionState: vi.fn(), metadata: null, playbackState: 'none' }
+    Object.defineProperty(navigator, 'mediaSession', { value: ms, configurable: true })
+    globalThis.MediaMetadata = class { constructor(m) { Object.assign(this, m) } }
+    try {
+      remount()
+      expect(ms.metadata.title).toBe('Get ready')
+      expect(ms.metadata.artist).toMatch(/^First up: /)
+    } finally { delete navigator.mediaSession; delete globalThis.MediaMetadata }
   })
 })
 

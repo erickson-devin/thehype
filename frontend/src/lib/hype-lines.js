@@ -117,7 +117,7 @@ export function drawHype(state, event, ...args) {
  *               the last work block instead.
  *   halfway   — the first work block after the first whose start is at or past half the plan's
  *               seconds (work + rest); dropped when it is not before lastRound.
- * Both need MIN_WORK_BLOCKS work blocks. Neither is ever block 0 ("First up" owns that one).
+ * Both need MIN_WORK_BLOCKS work blocks. Neither is ever the first work block ("First up" owns that one).
  */
 export function hypeMarks(blocks) {
   const list = blocks || []
@@ -131,7 +131,7 @@ export function hypeMarks(blocks) {
   const total = list.reduce((n, b) => n + b.sec, 0)
   let elapsed = 0, halfway = -1
   for (let i = 0; i < list.length; i++) {
-    if (i > 0 && list[i].kind === 'work' && elapsed * 2 >= total) { halfway = i; break }
+    if (i !== work[0] && list[i].kind === 'work' && elapsed * 2 >= total) { halfway = i; break }
     elapsed += list[i].sec
   }
   return { halfway: halfway >= 0 && halfway < lastRound ? halfway : -1, lastRound }
@@ -147,6 +147,7 @@ export function hypeMarks(blocks) {
 export function hypeEventsFor(blocks, idx, leftSec, fired = new Set(), marks = hypeMarks(blocks)) {
   const b = blocks?.[idx]
   if (!b) return []
+  if (b.kind !== 'work' && b.kind !== 'rest') return []   // the "Get ready" lead-in has its own line
   const out = []
   if (leftSec >= b.sec) {
     if (idx === marks.lastRound && !fired.has('lastRound')) out.push({ event: 'lastRound', key: 'lastRound', id: b.id })

@@ -99,6 +99,19 @@ describe('what survives a shared plan', () => {
     expect(target.routines[0].excludeFromProgression).toBe(true)
   })
 
+  it('carries the get-ready lead-in of an automated routine, even 0, and none for a manual one', () => {
+    const source = stateWith({})
+    Object.assign(source.routines[0], { auto: true, autoReadySec: 0, autoRestSec: 10 })
+    const bundle = parsePlan(buildPlanBundle(source, 'Plan'))
+    expect(bundle.routines[0].autoReadySec).toBe(0)
+    const target = { routines: [], week: {}, customEx: [] }
+    mergePlan(target, bundle)
+    expect(target.routines[0].autoReadySec).toBe(0)
+    const manual = stateWith({})
+    manual.routines[0].autoReadySec = 15
+    expect('autoReadySec' in parsePlan(buildPlanBundle(manual, 'Plan')).routines[0]).toBe(false)
+  })
+
   // Issue #10: the rest an exercise prescribes is part of the prescription. A shared 5x5 whose
   // rests arrive as the recipient's 60 s default is a different session than the one written.
   it('carries a per-exercise rest', () => {

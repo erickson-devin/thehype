@@ -72,10 +72,26 @@ describe('automated workout: duration estimate', () => {
   })
 
   it('counts a timed hold by its own seconds and shows hours for a long session', () => {
-    renderRoutine({ auto: true, ex: [ex('0001', 20, { mode: 'time', sec: 120 })] })   // 20 x 120 + 19 x 20 = 2780 s
-    expect(rowTitled('Estimated duration').querySelector('.lrow-v').textContent).toBe('~46 min')
+    renderRoutine({ auto: true, ex: [ex('0001', 20, { mode: 'time', sec: 120 })] })   // 20 x 120 + 19 x 20 + 20 get ready = 2800 s
+    expect(rowTitled('Estimated duration').querySelector('.lrow-v').textContent).toBe('~47 min')
     edit(r => { r.ex[0].sets = 40 })                                                   // 40 x 120 + 39 x 20 = 5580 s
     expect(rowTitled('Estimated duration').querySelector('.lrow-v').textContent).toBe('~1 h 33 min')
+  })
+
+  it('has a Get ready stepper that writes autoReadySec, and switching Automated off drops it', () => {
+    renderRoutine({ auto: true, ex: [ex('0001', 3)] })
+    const stepper = [...container.querySelectorAll('.stp-w')].find(w => w.querySelector('.stp-l')?.textContent === 'Get ready')
+    expect(stepper).toBeTruthy()
+    act(() => { stepper.querySelector('button').click() })   // minus: 20 -> 15
+    expect(useStore.getState().S.routines[0].autoReadySec).toBe(15)
+    act(() => rowTitled('Automated workout').querySelector('[role="switch"]').click())
+    expect(useStore.getState().S.routines[0].autoReadySec).toBeUndefined()
+  })
+
+  it('leaves the lead-in out of the estimate at 0', () => {
+    renderRoutine({ auto: true, ex: [ex('0001', 20, { mode: 'time', sec: 120 })] })
+    edit(r => { r.autoReadySec = 0 })                                                  // 2780 s
+    expect(rowTitled('Estimated duration').querySelector('.lrow-v').textContent).toBe('~46 min')
   })
 
   it('asks for exercises when there are none', () => {

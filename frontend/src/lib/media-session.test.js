@@ -26,6 +26,15 @@ describe('mediaMetadataFor', () => {
   })
 })
 
+describe('the get-ready lead-in', () => {
+  const RB = [{ kind: 'ready', sec: 20 }, ...B]
+  it('names the first exercise and counts as set 1', () => {
+    expect(mediaMetadataFor(RB, 0, o)).toEqual({ title: 'Get ready', artist: 'First up: Squat', album: 'Leg day · Set 1 of 3', artwork: sqArt })
+    expect(mediaMetadataFor(RB, 1, o).title).toBe('Squat')
+  })
+  it('has its own position', () => expect(positionStateFor({ sec: 20 }, 15000)).toEqual({ duration: 20, position: 5, playbackRate: 1 }))
+})
+
 describe('positionStateFor', () => {
   it('maps time left to a position', () => expect(positionStateFor({ sec: 40 }, 30000)).toEqual({ duration: 40, position: 10, playbackRate: 1 }))
   it('clamps', () => expect(positionStateFor({ sec: 40 }, 50000).position).toBe(0))

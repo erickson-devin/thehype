@@ -94,3 +94,26 @@ describe('holdFrom', () => {
     expect(positionAt(B, r, 112000)).toMatchObject({ idx: 0, leftMs: 30000 })
   })
 })
+
+describe('a get-ready lead-in', () => {
+  const R = [
+    { kind: 'ready', sec: 20 },
+    { kind: 'work', sec: 40, ei: 0, si: 0, id: 'a' },
+    { kind: 'rest', sec: 20 },
+    { kind: 'work', sec: 30, ei: 1, si: 0, id: 'b' },
+  ]
+  it('counts down like any block and moves on to work', () => {
+    expect(positionAt(R, c, 10000)).toMatchObject({ idx: 0, leftMs: 10000 })
+    expect(positionAt(R, c, 25000)).toMatchObject({ idx: 1, leftMs: 35000 })
+  })
+  it('logs no set for the lead-in', () => {
+    expect(endedWork(R, c, 0, 60000)).toEqual([1])
+    expect(endedWork(R, c, 0, 20000)).toEqual([])
+  })
+  it('can be skipped without logging anything', () => {
+    const s = skipBlock(R, c, 5000)
+    expect(s.cuts).toEqual({ 0: 5000 })
+    expect(positionAt(R, s, 5000)).toMatchObject({ idx: 1, leftMs: 40000 })
+    expect(endedWork(R, s, 0, 5000)).toEqual([])
+  })
+})

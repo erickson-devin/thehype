@@ -85,6 +85,21 @@ describe('hypeMarks', () => {
   })
 })
 
+describe('the get-ready lead-in', () => {
+  const P = [W(30, 0, 'a'), R(10), W(30, 1, 'b'), R(10), W(30, 2, 'c'), R(10), W(30, 3, 'd')]
+  const RP = [{ kind: 'ready', sec: 20 }, ...P]
+  it('fires no hype during it', () => {
+    for (const left of [20, 10, 5]) expect(hypeEventsFor(RP, 0, left)).toEqual([])
+  })
+  it('shifts the marks by one block', () => {
+    expect(hypeMarks(RP)).toEqual({ halfway: 5, lastRound: 7 })
+  })
+  it('never puts halfway on the first work block, whatever precedes it', () => {
+    // with `i > 0`, idx 1 (elapsed 100 s of 140) would wrongly qualify
+    expect(hypeMarks([{ kind: 'ready', sec: 100 }, W(10, 0), R(5), W(10, 0), R(5), W(10, 0)])).toEqual({ halfway: 3, lastRound: 5 })
+  })
+})
+
 describe('hypeEventsFor', () => {
   const P = [W(30, 0, 'a'), R(10), W(30, 1, 'b'), R(10), W(30, 2, 'c'), R(10), W(30, 3, 'd')]
   const pick = ev => ({ event: ev.event, key: ev.key, ...(ev.id ? { id: ev.id } : {}) })

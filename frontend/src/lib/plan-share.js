@@ -197,7 +197,7 @@ export function buildPlanBundle(S, name) {
     id: r.id, name: r.name, emoji: r.emoji,
     ...(r.prog ? { prog: r.prog } : {}),
     ...(r.excludeFromProgression === true ? { excludeFromProgression: true } : {}),
-    ...(r.auto === true ? { auto: true, ...(r.autoWorkSec ? { autoWorkSec: r.autoWorkSec } : {}), ...(r.autoRestSec != null ? { autoRestSec: r.autoRestSec } : {}) } : {}),
+    ...(r.auto === true ? { auto: true, ...(r.autoWorkSec ? { autoWorkSec: r.autoWorkSec } : {}), ...(r.autoRestSec != null ? { autoRestSec: r.autoRestSec } : {}), ...(r.autoReadySec != null ? { autoReadySec: r.autoReadySec } : {}) } : {}),
     ex: (r.ex || []).map(cleanEx)
   }))
   const usedIds = new Set(routines.flatMap(r => r.ex.map(e => e.id)))
@@ -305,7 +305,7 @@ export function mergePlan(s, bundle, { schedule } = {}) {
       emoji: r.emoji,
       ...(r.prog ? { prog: r.prog } : {}),
       ...(r.excludeFromProgression === true ? { excludeFromProgression: true } : {}),
-      ...(r.auto === true ? { auto: true, ...(r.autoWorkSec ? { autoWorkSec: r.autoWorkSec } : {}), ...(r.autoRestSec != null ? { autoRestSec: r.autoRestSec } : {}) } : {}),
+      ...(r.auto === true ? { auto: true, ...(r.autoWorkSec ? { autoWorkSec: r.autoWorkSec } : {}), ...(r.autoRestSec != null ? { autoRestSec: r.autoRestSec } : {}), ...(r.autoReadySec != null ? { autoReadySec: r.autoReadySec } : {}) } : {}),
       ex: (r.ex || []).map(e => ({ ...e, id: exIdMap[e.id] || canonicalExId(e.id) }))
     })
   })

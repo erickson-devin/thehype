@@ -5,11 +5,17 @@ const reps = (id, n, extra = {}) => ({ id, target: { sets: n, reps: 10, ...extra
 
 describe('intervalSettings', () => {
   it('falls back to the defaults for nothing, junk or out-of-range values', () => {
-    expect(intervalSettings(undefined)).toEqual({ workSec: 40, restSec: 20 })
-    expect(intervalSettings({ autoWorkSec: 'x', autoRestSec: 9999 })).toEqual({ workSec: 40, restSec: 20 })
+    expect(intervalSettings(undefined)).toEqual({ workSec: 40, restSec: 20, readySec: 20 })
+    expect(intervalSettings({ autoWorkSec: 'x', autoRestSec: 9999 })).toEqual({ workSec: 40, restSec: 20, readySec: 20 })
   })
   it('reads valid values, and lets rest be 0', () => {
-    expect(intervalSettings({ autoWorkSec: 30, autoRestSec: 0 })).toEqual({ workSec: 30, restSec: 0 })
+    expect(intervalSettings({ autoWorkSec: 30, autoRestSec: 0 })).toEqual({ workSec: 30, restSec: 0, readySec: 20 })
+  })
+  it('reads the get-ready lead-in: 0 is off, junk and out-of-range fall back to 20', () => {
+    expect(intervalSettings({ autoReadySec: 0 }).readySec).toBe(0)
+    expect(intervalSettings({ autoReadySec: 61 }).readySec).toBe(20)
+    expect(intervalSettings({ autoReadySec: true }).readySec).toBe(20)
+    expect(intervalSettings({ autoReadySec: '15' }).readySec).toBe(15)
   })
   it('flags a routine only when auto is exactly true', () => {
     expect(isAutoRoutine({ auto: true })).toBe(true)
@@ -44,6 +50,33 @@ describe('buildIntervals', () => {
   it('is empty for nothing to do', () => {
     expect(buildIntervals([])).toEqual([])
     expect(buildIntervals(undefined)).toEqual([])
+  })
+})
+
+describe('buildIntervals: the get-ready lead-in', () => {
+  const opts = { workSec: 40, restSec: 20 }
+  it('puts a ready block first and leaves the rest of the plan as it was', () => {
+    const b = buildIntervals([reps('squat', 2), reps('lunge', 1)], { ...opts, readySec: 20 })
+    expect(b[0]).toEqual({ kind: 'ready', sec: 20 })
+    expect(b.slice(1)).toEqual(buildIntervals([reps('squat', 2), reps('lunge', 1)], opts))
+  })
+  it('adds none for 0, a bare call, nothing to do, or all sets done', () => {
+    expect(buildIntervals([reps('squat', 2), reps('lunge', 1)], { ...opts, readySec: 0 }).map(x => x.kind)).toEqual(['work', 'rest', 'work', 'rest', 'work'])
+    expect(buildIntervals([reps('squat', 1)]).map(x => x.kind)).toEqual(['work'])
+    expect(buildIntervals([], { readySec: 20 })).toEqual([])
+    const e = reps('squat', 2); e.sets.forEach(s => { s.done = true })
+    expect(buildIntervals([e], { readySec: 20 })).toEqual([])
+  })
+  it('adds none to a resumed session, but a done warm-up row does not count as started', () => {
+    const e = reps('squat', 2); e.sets[0].done = true
+    expect(buildIntervals([e], { readySec: 20 }).map(x => x.kind)).toEqual(['work'])
+    const w = reps('squat', 2); w.sets[0].done = true; w.sets[0].warmup = true
+    expect(buildIntervals([w], { readySec: 20 })[0].kind).toBe('ready')
+  })
+  it('is counted by nextWork and remainingSec', () => {
+    const b = buildIntervals([reps('squat', 2), reps('lunge', 1)], { ...opts, readySec: 20 })
+    expect(nextWork(b, 0).id).toBe('squat')
+    expect(remainingSec(b, 0, 20)).toBe(20 + 40 + 20 + 40 + 20 + 40)
   })
 })
 
@@ -84,12 +117,16 @@ describe('estimateRoutine', () => {
     expect(e.restSec).toBe(20 + 20 + 20 + 90)
   })
   it('reads the routine’s own interval settings by default', () => {
-    expect(estimateRoutine({ autoWorkSec: 30, autoRestSec: 10, ex: [cfg('a', 2)] }).sec).toBe(30 + 10 + 30)
+    expect(estimateRoutine({ autoWorkSec: 30, autoRestSec: 10, ex: [cfg('a', 2)] }).sec).toBe(20 + 30 + 10 + 30)
   })
   it('treats a missing or odd set count as one set, and caps an absurd one', () => {
     expect(estimateRoutine({ ex: [{ id: 'a' }] }, settings).sets).toBe(1)
     expect(estimateRoutine({ ex: [{ id: 'a', sets: 'x' }] }, settings).sets).toBe(1)
     expect(estimateRoutine({ ex: [cfg('a', 99999)] }, settings).sets).toBe(100)
+  })
+  it('counts the get-ready lead-in', () => {
+    expect(estimateRoutine({ ex: [cfg('a', 3), cfg('b', 1)] }, { ...settings, readySec: 20 })).toMatchObject({ sec: 240, readySec: 20, workSec: 160, restSec: 60 })
+    expect(estimateRoutine({ ex: [] }, { ...settings, readySec: 20 }).sec).toBe(0)
   })
   it('is zero for an empty routine', () => {
     expect(estimateRoutine({ ex: [] }, settings)).toMatchObject({ sec: 0, sets: 0, exercises: 0 })
@@ -108,7 +145,7 @@ describe('approxTime', () => {
 
 describe('intervalSettings: unset values fall back to the defaults', () => {
   it('treats null, an empty string and a boolean as unset', () => {
-    expect(intervalSettings({ autoRestSec: null })).toEqual({ workSec: 40, restSec: 20 })
+    expect(intervalSettings({ autoRestSec: null })).toEqual({ workSec: 40, restSec: 20, readySec: 20 })
     expect(intervalSettings({ autoRestSec: '' }).restSec).toBe(20)
     expect(intervalSettings({ autoWorkSec: true }).workSec).toBe(40)
   })

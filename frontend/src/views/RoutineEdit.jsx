@@ -22,7 +22,7 @@ import { markEntryUndone } from '../lib/sync-merge.js'
 import { MOBILE, printHtml } from '../lib/mobile.js'
 import { speedUnitOf } from '../lib/speed.js'
 import { POLICIES_FOR, POLICY_NAME, POLICY_DESC } from '../lib/progression.js'
-import { intervalSettings, estimateRoutine, approxTime, WORK_SEC_RANGE, REST_SEC_RANGE } from '../lib/interval-plan.js'
+import { intervalSettings, estimateRoutine, approxTime, WORK_SEC_RANGE, REST_SEC_RANGE, READY_SEC_RANGE } from '../lib/interval-plan.js'
 import BodyMap from '../components/BodyMap.jsx'
 import { loadOfRoutine, rankOf, MUSCLE_NAME } from '../lib/muscles.js'
 
@@ -497,7 +497,7 @@ export default function RoutineEdit() {
         <Switch checked={r.auto === true} onChange={v => update(s => {
           const routine = s.routines.find(x => x.id === id)
           if (v) routine.auto = true
-          else { delete routine.auto; delete routine.autoWorkSec; delete routine.autoRestSec }
+          else { delete routine.auto; delete routine.autoWorkSec; delete routine.autoRestSec; delete routine.autoReadySec }
         })} />
       </Row>
     </div>
@@ -509,10 +509,13 @@ export default function RoutineEdit() {
         <div style={{ height: 8 }} />
         <Stepper label={t('Rest interval')} unit={t('sec')} value={iv.restSec} step={5} min={REST_SEC_RANGE[0]} max={REST_SEC_RANGE[1]} decimal={false}
           onChange={v => update(s => { s.routines.find(x => x.id === id).autoRestSec = Math.round(v) })} />
+        <div style={{ height: 8 }} />
+        <Stepper label={t('Get ready')} unit={t('sec')} value={iv.readySec} step={5} min={READY_SEC_RANGE[0]} max={READY_SEC_RANGE[1]} decimal={false}
+          onChange={v => update(s => { s.routines.find(x => x.id === id).autoReadySec = Math.round(v) })} />
         <div className="small dim" style={{ margin: '6px 2px 0' }}>{t('Work applies to rep sets. Timed holds and cardio use their own length, and an exercise’s own rest wins over this one.')}</div>
         {/* How long the routine would run as it stands, counted the way the player counts it
             (lib/interval-plan.js estimateRoutine). Live: it follows every edit of the exercises, their
-            sets and the two intervals above. An estimate, since a progression rule can change the
+            sets, the two intervals above and the lead-in. An estimate, since a progression rule can change the
             sets when the session starts. */}
         {(() => {
           const est = estimateRoutine(r, iv), at = approxTime(est.sec)

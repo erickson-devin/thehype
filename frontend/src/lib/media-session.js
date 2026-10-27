@@ -23,6 +23,9 @@ export function mediaMetadataFor(blocks, idx, { nameOf, artworkOf, t, sessionNam
   if (b.kind === 'work') {
     title = nameOf(b.id)
     artist = nextWork ? t('Work {0} s · Up next: {1}', b.sec, nameOf(nextWork.id)) : t('Work {0} s · Last one!', b.sec)
+  } else if (b.kind === 'ready') {
+    title = t('Get ready')
+    artist = t('First up: {0}', upcoming ? nameOf(upcoming.id) : '')
   } else {
     title = t('Rest')
     artist = t('Rest {0} s · Up next: {1}', b.sec, upcoming ? nameOf(upcoming.id) : '')

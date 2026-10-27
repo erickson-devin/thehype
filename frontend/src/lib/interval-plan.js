@@ -8,6 +8,8 @@ export const DEFAULT_WORK_SEC = 40
 export const DEFAULT_REST_SEC = 20
 export const WORK_SEC_RANGE = [5, 600]
 export const REST_SEC_RANGE = [0, 300]
+export const DEFAULT_READY_SEC = 20
+export const READY_SEC_RANGE = [0, 60]
 
 const pick = (v, [lo, hi], fallback) => {
   if (v == null || v === '' || typeof v === 'boolean') return fallback   // Number(null), Number('') and Number(true) are 0 and 1, not 'unset'
@@ -23,6 +25,7 @@ export function intervalSettings(r) {
   return {
     workSec: pick(r?.autoWorkSec, WORK_SEC_RANGE, DEFAULT_WORK_SEC),
     restSec: pick(r?.autoRestSec, REST_SEC_RANGE, DEFAULT_REST_SEC),
+    readySec: pick(r?.autoReadySec, READY_SEC_RANGE, DEFAULT_READY_SEC),
   }
 }
 
@@ -42,10 +45,11 @@ function workSecFor(entry, workSec) {
  * The session's pending sets as blocks, in the order the workout lists them:
  *   { kind: 'work', sec, ei, si, id }   — entry index, set index, exercise id
  *   { kind: 'rest', sec }               — between two work blocks, never after the last
+ *   { kind: 'ready', sec }              — optional first block: the "Get ready" lead-in, never logged
  * Warm-up rows and sets already ticked are left out, so a session that is resumed picks up where
  * it stopped. An exercise's own rest (target.restSec) wins over the routine's.
  */
-export function buildIntervals(entries, { workSec = DEFAULT_WORK_SEC, restSec = DEFAULT_REST_SEC } = {}) {
+export function buildIntervals(entries, { workSec = DEFAULT_WORK_SEC, restSec = DEFAULT_REST_SEC, readySec = 0 } = {}) {
   const out = []
   let prev = null // the entry whose set was added last: its rest is the one that follows it
   ;(entries || []).forEach((entry, ei) => {
@@ -60,6 +64,10 @@ export function buildIntervals(entries, { workSec = DEFAULT_WORK_SEC, restSec = 
       prev = entry
     })
   })
+  // A lead-in before the first set ("Get ready… first up: X"), never logged. Only for a session that
+  // has not started: a resumed one (a working set already ticked) goes straight back to work.
+  const started = (entries || []).some(e => (e.sets || []).some(s => s.done && !isWarmupRow(s)))
+  if (readySec > 0 && !started && out.some(b => b.kind === 'work')) out.unshift({ kind: 'ready', sec: Math.round(readySec) })
   return out
 }
 
@@ -77,8 +85,8 @@ export const remainingSec = (blocks, i, left) =>
 const SETS_CAP = 100
 
 /**
- * What the routine would run as an automated workout: { sec, sets, exercises, workSec, restSec }, the
- * time in whole seconds, summed over the same blocks the player counts down.
+ * What the routine would run as an automated workout: { sec, sets, exercises, workSec, restSec, readySec },
+ * the time in whole seconds (lead-in included), summed over the same blocks the player counts down.
  */
 export function estimateRoutine(routine, settings = intervalSettings(routine)) {
   const ex = (routine?.ex || []).filter(Boolean)
@@ -94,6 +102,7 @@ export function estimateRoutine(routine, settings = intervalSettings(routine)) {
     exercises: ex.length,
     workSec: work.reduce((n, b) => n + b.sec, 0),
     restSec: blocks.reduce((n, b) => n + (b.kind === 'rest' ? b.sec : 0), 0),
+    readySec: blocks.reduce((n, b) => n + (b.kind === 'ready' ? b.sec : 0), 0),
   }
 }
 
